@@ -22,7 +22,7 @@
     <parent>
         <groupId>org.bitcoinj-sv</groupId>
         <artifactId>bitcoinj-parent</artifactId>
-        <version>0.9.0</version>
+        <version>0.9.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>bitcoinj-sv</artifactId>
