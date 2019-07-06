@@ -694,8 +694,8 @@ public abstract class AbstractBlockChain {
     /**
      * Gets the median timestamp of the last 11 blocks
      */
-    private static long getMedianTimestampOfRecentBlocks(StoredBlock storedBlock,
-                                                         BlockStore store) throws BlockStoreException {
+    public static long getMedianTimestampOfRecentBlocks(StoredBlock storedBlock,
+                                                        BlockStore store) throws BlockStoreException {
         long[] timestamps = new long[11];
         int unused = 9;
         timestamps[10] = storedBlock.getHeader().getTimeSeconds();

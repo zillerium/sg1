@@ -39,7 +39,7 @@ public class AddressFactory {
      */
     public Address getAddress(NetworkParameters params, String plainAddress) {
         try {
-            return Address.fromBase58(params, plainAddress);
+            return Address.fromString(params, plainAddress);
         } catch (AddressFormatException x) {
             throw new AddressFormatException("Address " + plainAddress + " does not format (" + x.getMessage());
         }

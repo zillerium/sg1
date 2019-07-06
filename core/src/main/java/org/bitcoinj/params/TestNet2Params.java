@@ -56,14 +56,13 @@ public class TestNet2Params extends AbstractBitcoinNetParams {
         checkState(genesisHash.equals("00000007199508e34a9ff81e6ec0c477a4cccff2a4767a8eee39c11db367b008"));
         dnsSeeds = null;
         addrSeeds = null;
-        bip32HeaderPub = 0x043587CF;
-        bip32HeaderPriv = 0x04358394;
+        bip32HeaderP2PKHpub = 0x043587CF;
+        bip32HeaderP2PKHpriv = 0x04358394;
 
         majorityEnforceBlockUpgrade = TESTNET_MAJORITY_ENFORCE_BLOCK_UPGRADE;
         majorityRejectBlockOutdated = TESTNET_MAJORITY_REJECT_BLOCK_OUTDATED;
         majorityWindow = TESTNET_MAJORITY_WINDOW;
 
-        cashAddrPrefix = "bchtest";
         // Nov, 13 hard fork
         daaUpdateHeight = 1188697;
     }

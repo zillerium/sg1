@@ -59,6 +59,9 @@ public abstract class NetworkParameters {
     public static final String ID_REGTEST = "org.bitcoin.regtest";
     /** Unit test network. */
     public static final String ID_UNITTESTNET = "org.bitcoinj.unittest";
+    /** Scaling test network */
+    public static final String ID_SCALINGTESTNET = "org.bitcoinj.stn";
+
 
     /** The string used by the payment protocol to represent the main net. */
     public static final String PAYMENT_PROTOCOL_ID_MAINNET = "main";
@@ -90,6 +93,15 @@ public abstract class NetworkParameters {
     protected int majorityEnforceBlockUpgrade;
     protected int majorityRejectBlockOutdated;
     protected int majorityWindow;
+
+    // Aug, 1 2017 hard fork
+    protected int uahfHeight;
+    // Nov, 13 2017 hard fork
+    protected int daaUpdateHeight;
+    // May, 15 2018 hard fork
+    protected long monolithActivationTime = 1526400000L;
+    protected int[] acceptableAddressCodes;
+
 
     /**
      * See getId(). This may be null for old deserialized wallets. In that case we derive it heuristically
@@ -494,6 +506,28 @@ public abstract class NetworkParameters {
 
     public abstract int getProtocolVersionNum(final ProtocolVersion version);
 
+    public void verifyDifficulty(BigInteger newTarget, Block nextBlock) {
+        if (newTarget.compareTo(this.getMaxTarget()) > 0) {
+            newTarget = this.getMaxTarget();
+        }
+
+        int accuracyBytes = (int) (nextBlock.getDifficultyTarget() >>> 24) - 3;
+        long receivedTargetCompact = nextBlock.getDifficultyTarget();
+
+        // The calculated difficulty is to a higher precision than received, so reduce here.
+        BigInteger mask = BigInteger.valueOf(0xFFFFFFL).shiftLeft(accuracyBytes * 8);
+        newTarget = newTarget.and(mask);
+        long newTargetCompact = Utils.encodeCompactBits(newTarget);
+
+        if (newTargetCompact != receivedTargetCompact)
+            throw new VerificationException("Network provided difficulty bits do not match what was calculated: " +
+                    Long.toHexString(newTargetCompact) + " vs " + Long.toHexString(receivedTargetCompact));
+    }
+    public int getDAAUpdateHeight(){
+        return daaUpdateHeight;
+    }
+
+
     public static enum ProtocolVersion {
         MINIMUM(70000),
         PONG(60001),
@@ -511,5 +545,6 @@ public abstract class NetworkParameters {
         public int getBitcoinProtocolVersion() {
             return bitcoinProtocol;
         }
+
     }
 }

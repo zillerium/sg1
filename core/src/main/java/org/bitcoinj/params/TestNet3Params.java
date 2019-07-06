@@ -75,8 +75,8 @@ public class TestNet3Params extends AbstractBitcoinNetParams {
                 "testnet-seed.cascharia.com"
         };
         addrSeeds = null;
-        bip32HeaderPub = 0x043587CF;
-        bip32HeaderPriv = 0x04358394;
+        bip32HeaderP2PKHpub = 0x043587CF;
+        bip32HeaderP2PKHpriv = 0x04358394;
 
         majorityEnforceBlockUpgrade = TestNet2Params.TESTNET_MAJORITY_ENFORCE_BLOCK_UPGRADE;
         majorityRejectBlockOutdated = TestNet2Params.TESTNET_MAJORITY_REJECT_BLOCK_OUTDATED;
@@ -86,7 +86,6 @@ public class TestNet3Params extends AbstractBitcoinNetParams {
         uahfHeight = 1155876;
         // Nov, 13 hard fork
         daaUpdateHeight = 1188697;
-        cashAddrPrefix = "bchtest";
     }
 
     private static TestNet3Params instance;

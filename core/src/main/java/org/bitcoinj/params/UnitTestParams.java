@@ -52,14 +52,13 @@ public class UnitTestParams extends AbstractBitcoinNetParams {
         subsidyDecreaseBlockCount = 100;
         dnsSeeds = null;
         addrSeeds = null;
-        bip32HeaderPub = 0x043587CF;
-        bip32HeaderPriv = 0x04358394;
+        bip32HeaderP2PKHpub = 0x043587CF;
+        bip32HeaderP2PKHpriv = 0x04358394;
 
         majorityEnforceBlockUpgrade = 3;
         majorityRejectBlockOutdated = 4;
         majorityWindow = 7;
 
-        cashAddrPrefix = "bchtest";
         // Nov, 13 hard fork
         daaUpdateHeight = 1000000;
     }
