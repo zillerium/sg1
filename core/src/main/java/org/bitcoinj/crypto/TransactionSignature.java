@@ -56,6 +56,12 @@ public class TransactionSignature extends ECKey.ECDSASignature {
         sighashFlags = calcSigHashValue(mode, anyoneCanPay);
     }
 
+    public TransactionSignature(ECKey.ECDSASignature signature, Transaction.SigHash mode, boolean anyoneCanPay,
+                                boolean useForkId) {
+        super(signature.r, signature.s);
+        sighashFlags = calcSigHashValue(mode, anyoneCanPay, useForkId);
+    }
+
     /**
      * Returns a dummy invalid signature whose R/S values are set such that they will take up the same number of
      * encoded bytes as a real signature. This can be useful when you want to fill out a transaction to be of the
@@ -73,6 +79,16 @@ public class TransactionSignature extends ECKey.ECDSASignature {
         int sighashFlags = mode.value;
         if (anyoneCanPay)
             sighashFlags |= Transaction.SigHash.ANYONECANPAY.value;
+        return sighashFlags;
+    }
+
+    public static int calcSigHashValue(Transaction.SigHash mode, boolean anyoneCanPay, boolean useForkId) {
+        Preconditions.checkArgument(SigHash.ALL == mode || SigHash.NONE == mode || SigHash.SINGLE == mode); // enforce compatibility since this code was made before the SigHash enum was updated
+        int sighashFlags = mode.value;
+        if (anyoneCanPay)
+            sighashFlags |= Transaction.SigHash.ANYONECANPAY.value;
+        if(useForkId)
+            sighashFlags |= SigHash.FORKID.value;
         return sighashFlags;
     }
 

@@ -523,6 +523,7 @@ public class Transaction extends ChildMessage {
         ALL(1),
         NONE(2),
         SINGLE(3),
+        FORKID(0x40),
         ANYONECANPAY(0x80), // Caution: Using this type in isolation is non-standard. Treated similar to ANYONECANPAY_ALL.
         ANYONECANPAY_ALL(0x81),
         ANYONECANPAY_NONE(0x82),
