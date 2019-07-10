@@ -50,6 +50,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -95,7 +96,7 @@ public class PeerTest extends TestWithNetworkConnections {
     }
 
     private void connect() throws Exception {
-        connectWithVersion(70001, VersionMessage.NODE_NETWORK);
+        connectWithVersion(70001, VersionMessage.NODE_NETWORK | VersionMessage.NODE_BITCOIN_CASH);
     }
 
     private void connectWithVersion(int version, int flags) throws Exception {
@@ -267,7 +268,7 @@ public class PeerTest extends TestWithNetworkConnections {
         peer2.addWallet(wallet);
         VersionMessage peerVersion = new VersionMessage(UNITTEST, OTHER_PEER_CHAIN_HEIGHT);
         peerVersion.clientVersion = 70001;
-        peerVersion.localServices = VersionMessage.NODE_NETWORK;
+        peerVersion.localServices = VersionMessage.NODE_NETWORK | VersionMessage.NODE_BITCOIN_CASH;
 
         connect();
         InboundMessageQueuer writeTarget2 = connect(peer2, peerVersion);
@@ -683,7 +684,7 @@ public class PeerTest extends TestWithNetworkConnections {
 
     @Test
     public void timeLockedTransactionNew() throws Exception {
-        connectWithVersion(70001, VersionMessage.NODE_NETWORK);
+        connectWithVersion(70001, VersionMessage.NODE_NETWORK | VersionMessage.NODE_BITCOIN_CASH);
         // Test that if we receive a relevant transaction that has a lock time, it doesn't result in a notification
         // until we explicitly opt in to seeing those.
         Wallet wallet = new Wallet(UNITTEST);
@@ -736,7 +737,7 @@ public class PeerTest extends TestWithNetworkConnections {
 
     private void checkTimeLockedDependency(boolean shouldAccept) throws Exception {
         // Initial setup.
-        connectWithVersion(70001, VersionMessage.NODE_NETWORK);
+        connectWithVersion(70001, VersionMessage.NODE_NETWORK | VersionMessage.NODE_BITCOIN_CASH);
         Wallet wallet = new Wallet(UNITTEST);
         ECKey key = wallet.freshReceiveKey();
         wallet.setAcceptRiskyTransactions(shouldAccept);
@@ -807,7 +808,7 @@ public class PeerTest extends TestWithNetworkConnections {
                 disconnectedFuture.set(null);
             }
         });
-        connectWithVersion(500, VersionMessage.NODE_NETWORK);
+        connectWithVersion(500, VersionMessage.NODE_NETWORK | VersionMessage.NODE_BITCOIN_CASH);
         // We must wait uninterruptibly here because connect[WithVersion] generates a peer that interrupts the current
         // thread when it disconnects.
         Uninterruptibles.getUninterruptibly(connectedFuture);
@@ -933,7 +934,7 @@ public class PeerTest extends TestWithNetworkConnections {
         }.bitcoinSerialize(), out);
         writeTarget.writeTarget.writeBytes(out.toByteArray());
         try {
-            result.get();
+            result.get(1, TimeUnit.SECONDS);
             fail();
         } catch (ExecutionException e) {
             assertTrue(e.getCause() instanceof ProtocolException);

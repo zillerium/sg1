@@ -191,12 +191,14 @@ public class SendRequest {
     /** Simply wraps a pre-built incomplete transaction provided by you. */
     public static SendRequest forTx(Transaction tx) {
         SendRequest req = new SendRequest();
+        req.setUseForkId(true);
         req.tx = tx;
         return req;
     }
 
     public static SendRequest emptyWallet(Address destination) {
         SendRequest req = new SendRequest();
+        req.setUseForkId(true);
         final NetworkParameters parameters = destination.getParameters();
         checkNotNull(parameters, "Address is for an unknown network");
         req.tx = new Transaction(parameters);
@@ -272,4 +274,15 @@ public class SendRequest {
         helper.add("recipientsPayFees", recipientsPayFees);
         return helper.toString();
     }
+
+    /** Use Version 2 Transactions with forkid signatures **/
+    private boolean useForkId = false;
+
+    public void setUseForkId(boolean useForkId) {
+        this.useForkId = useForkId;
+        if(tx != null)
+            tx.setVersion(Transaction.CURRENT_VERSION);
+    }
+
+    public boolean getUseForkId() { return useForkId; }
 }
