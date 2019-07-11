@@ -86,4 +86,14 @@ public class VerificationException extends RuntimeException {
             super(message);
         }
     }
+
+    public static class SignatureFormatError extends VerificationException {
+        public SignatureFormatError(String msg) {
+            super(msg);
+        }
+
+        public SignatureFormatError(Exception e) {
+            super(e);
+        }
+    }
 }

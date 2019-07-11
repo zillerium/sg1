@@ -202,10 +202,14 @@ public class Transaction extends ChildMessage {
     private String memo;
 
     public Transaction(NetworkParameters params) {
+        this(params, CURRENT_VERSION);
+    }
+
+    public Transaction(NetworkParameters params, int version) {
         super(params);
-        version = 1;
-        inputs = new ArrayList<>();
-        outputs = new ArrayList<>();
+        this.version = version;
+        inputs = new ArrayList<TransactionInput>();
+        outputs = new ArrayList<TransactionOutput>();
         // We don't initialize appearsIn deliberately as it's only useful for transactions stored in the wallet.
         length = 8; // 8 for std fields
     }
@@ -929,10 +933,13 @@ public class Transaction extends ChildMessage {
      * @throws ScriptException if the scriptPubKey is not a pay to address or pay to pubkey script.
      */
     public TransactionInput addSignedInput(TransactionOutPoint prevOut, Script scriptPubKey, ECKey sigKey,
-                                           SigHash sigHash, boolean anyoneCanPay) throws ScriptException {
+                                           SigHash sigHash, boolean anyoneCanPay, boolean forkId) throws ScriptException {
         // Verify the API user didn't try to do operations out of order.
         checkState(!outputs.isEmpty(), "Attempting to sign tx without outputs.");
         TransactionInput input = new TransactionInput(params, this, new byte[] {}, prevOut);
+        Sha256Hash hash = forkId ?
+                hashForWitnessSignature(inputs.size() -1, scriptPubKey, prevOut.getConnectedOutput().getValue(), sigHash, anyoneCanPay) :
+                hashForSignature(inputs.size() - 1, scriptPubKey, sigHash, anyoneCanPay);
         addInput(input);
         int inputIndex = inputs.size() - 1;
         if (ScriptPattern.isP2PK(scriptPubKey)) {
@@ -959,11 +966,11 @@ public class Transaction extends ChildMessage {
     }
 
     /**
-     * Same as {@link #addSignedInput(TransactionOutPoint, Script, ECKey, Transaction.SigHash, boolean)}
+     * Same as {@link #addSignedInput(TransactionOutPoint, Script, ECKey, Transaction.SigHash, boolean, boolean)}
      * but defaults to {@link SigHash#ALL} and "false" for the anyoneCanPay flag. This is normally what you want.
      */
     public TransactionInput addSignedInput(TransactionOutPoint prevOut, Script scriptPubKey, ECKey sigKey) throws ScriptException {
-        return addSignedInput(prevOut, scriptPubKey, sigKey, SigHash.ALL, false);
+        return addSignedInput(prevOut, scriptPubKey, sigKey, SigHash.ALL, false, true);
     }
 
     /**
@@ -979,7 +986,7 @@ public class Transaction extends ChildMessage {
      * signing key.
      */
     public TransactionInput addSignedInput(TransactionOutput output, ECKey signingKey, SigHash sigHash, boolean anyoneCanPay) {
-        return addSignedInput(output.getOutPointFor(), output.getScriptPubKey(), signingKey, sigHash, anyoneCanPay);
+        return addSignedInput(output.getOutPointFor(), output.getScriptPubKey(), signingKey, sigHash, anyoneCanPay, true);
     }
 
     /**

@@ -1,5 +1,6 @@
 /*
  * Copyright 2013 Google Inc.
+ * Copyright 2018 the bitcoinj-cash developers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,6 +13,9 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * This file has been modified by the bitcoinj-cash developers for the bitcoinj-cash project.
+ * The original file was from the bitcoinj project (https://github.com/bitcoinj/bitcoinj).
  */
 
 package org.bitcoinj.script;
@@ -22,7 +26,7 @@ import java.util.Map;
 
 /**
  * Various constants that define the assembly-like scripting language that forms part of the Bitcoin protocol.
- * See {@link Script} for details. Also provides a method to convert them to a string.
+ * See {@link org.bitcoinj.script.Script} for details. Also provides a method to convert them to a string.
  */
 public class ScriptOpCodes {
     // push value
@@ -86,9 +90,9 @@ public class ScriptOpCodes {
 
     // splice ops
     public static final int OP_CAT = 0x7e;
-    public static final int OP_SUBSTR = 0x7f;
-    public static final int OP_LEFT = 0x80;
-    public static final int OP_RIGHT = 0x81;
+    public static final int OP_SPLIT = 0x7f;
+    public static final int OP_NUM2BIN = 0x80;
+    public static final int OP_BIN2NUM = 0x81;
     public static final int OP_SIZE = 0x82;
 
     // bit logic
@@ -152,7 +156,6 @@ public class ScriptOpCodes {
     /** Deprecated by BIP 65 */
     @Deprecated
     public static final int OP_NOP2 = OP_CHECKLOCKTIMEVERIFY;
-    /** Deprecated by BIP 112 */
     @Deprecated
     public static final int OP_NOP3 = OP_CHECKSEQUENCEVERIFY;
     public static final int OP_NOP4 = 0xb3;
@@ -162,6 +165,7 @@ public class ScriptOpCodes {
     public static final int OP_NOP8 = 0xb7;
     public static final int OP_NOP9 = 0xb8;
     public static final int OP_NOP10 = 0xb9;
+
     public static final int OP_INVALIDOPCODE = 0xff;
 
     private static final Map<Integer, String> opCodeMap = ImmutableMap.<Integer, String>builder()
@@ -217,9 +221,9 @@ public class ScriptOpCodes {
         .put(OP_SWAP, "SWAP")
         .put(OP_TUCK, "TUCK")
         .put(OP_CAT, "CAT")
-        .put(OP_SUBSTR, "SUBSTR")
-        .put(OP_LEFT, "LEFT")
-        .put(OP_RIGHT, "RIGHT")
+        .put(OP_SPLIT, "SPLIT")
+        .put(OP_NUM2BIN, "NUM2BIN")
+        .put(OP_BIN2NUM, "BIN2NUM")
         .put(OP_SIZE, "SIZE")
         .put(OP_INVERT, "INVERT")
         .put(OP_AND, "AND")
@@ -330,9 +334,9 @@ public class ScriptOpCodes {
         .put("SWAP", OP_SWAP)
         .put("TUCK", OP_TUCK)
         .put("CAT", OP_CAT)
-        .put("SUBSTR", OP_SUBSTR)
-        .put("LEFT", OP_LEFT)
-        .put("RIGHT", OP_RIGHT)
+        .put("SPLIT", OP_SPLIT)
+        .put("NUM2BIN", OP_NUM2BIN)
+        .put("BIN2NUM", OP_BIN2NUM)
         .put("SIZE", OP_SIZE)
         .put("INVERT", OP_INVERT)
         .put("AND", OP_AND)
@@ -381,8 +385,8 @@ public class ScriptOpCodes {
         .put("CHECKMULTISIGVERIFY", OP_CHECKMULTISIGVERIFY)
         .put("NOP1", OP_NOP1)
         .put("CHECKLOCKTIMEVERIFY", OP_CHECKLOCKTIMEVERIFY)
-        .put("CHECKSEQUENCEVERIFY", OP_CHECKSEQUENCEVERIFY)
         .put("NOP2", OP_NOP2)
+        .put("CHECKSEQUENCEVERIFY", OP_CHECKSEQUENCEVERIFY)
         .put("NOP3", OP_NOP3)
         .put("NOP4", OP_NOP4)
         .put("NOP5", OP_NOP5)
