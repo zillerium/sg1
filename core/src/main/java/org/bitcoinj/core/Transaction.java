@@ -1113,12 +1113,13 @@ public class Transaction extends ChildMessage {
      * @return A newly calculated signature object that wraps the r, s and sighash components.
      */
     public TransactionSignature calculateSignature(int inputIndex, ECKey key,
-                                                   @Nullable KeyParameter aesKey,
-                                                   Script redeemScript,
-                                                   SigHash hashType, boolean anyoneCanPay) {
+                                                    @Nullable KeyParameter aesKey,
+                                                    Script redeemScript,
+                                                    SigHash hashType, boolean anyoneCanPay) {
         Sha256Hash hash = hashForSignature(inputIndex, redeemScript.getProgram(), hashType, anyoneCanPay);
         return new TransactionSignature(key.sign(hash, aesKey), hashType, anyoneCanPay);
     }
+
 
     /**
      * <p>Calculates a signature hash, that is, a hash of a simplified form of the transaction. How exactly the transaction
@@ -1392,7 +1393,7 @@ public class Transaction extends ChildMessage {
             uint32ToByteStreamLE(inputs.get(inputIndex).getSequenceNumber(), bos);
             bos.write(hashOutputs);
             uint32ToByteStreamLE(this.lockTime, bos);
-            uint32ToByteStreamLE(0x000000ff & sigHashType, bos);
+            uint32ToByteStreamLE(nSigHashType, bos);
         } catch (IOException e) {
             throw new RuntimeException(e);  // Cannot happen.
         }
@@ -1777,5 +1778,28 @@ public class Transaction extends ChildMessage {
      */
     public void setMemo(String memo) {
         this.memo = memo;
+    }
+
+    public boolean isOpReturn() {
+        if (getOpReturnData() != null) {
+            return true;
+        }
+        return false;
+    }
+
+    public byte[] getOpReturnData() {
+        // Only one OP_RETURN output per transaction is allowed as "standard" transaction
+        // So just return the first OP_RETURN data found
+        for (TransactionOutput output : outputs) {
+            if (output.isOpReturn()) {
+                return output.getOpReturnData();
+            }
+        }
+        return null;
+    }
+
+    public TransactionOutput addData(byte[] data) {
+        Script script = ScriptBuilder.createOpReturnScript(data);
+        return addOutput(new TransactionOutput(params, this, Coin.ZERO, script.getProgram()));
     }
 }

@@ -39,6 +39,7 @@ import org.bitcoinj.core.Utils;
 import org.bitcoinj.core.VerificationException;
 import org.bitcoinj.core.TransactionConfidence.ConfidenceType;
 import org.bitcoinj.crypto.*;
+import org.bitcoinj.params.UnitTestParams;
 import org.bitcoinj.script.Script;
 import org.bitcoinj.script.ScriptBuilder;
 import org.bitcoinj.script.ScriptChunk;
@@ -3714,5 +3715,36 @@ public class WalletTest extends TestWithWallet {
         assertEquals(wallet.currentReceiveKey(), clone.currentReceiveKey());
         assertEquals(wallet.freshReceiveAddress(Script.ScriptType.P2PKH),
                 clone.freshReceiveAddress(Script.ScriptType.P2PKH));
+    }
+
+    @Test
+    public void testReceiveWithReturnData() throws Exception {
+        final String dataSent = "hello world";
+        final StringBuffer dataReceived = new StringBuffer();
+
+        // Configure listener
+        wallet.addCoinsReceivedEventListener(new WalletCoinsReceivedEventListener() {
+            @Override
+            public void onCoinsReceived(Wallet wallet, Transaction tx, Coin prevBalance, Coin newBalance) {
+                if (tx.isOpReturn()) {
+                    dataReceived.append(new String(tx.getOpReturnData()));
+                }
+            }
+        });
+
+        // Receive 2 BTC in 2 separate transactions
+        Transaction toMe1 = createFakeTxToMeWithReturnData(UnitTestParams.get(), COIN.multiply(2), myAddress, "hello world".getBytes());
+        sendMoneyToWallet(AbstractBlockChain.NewBlockType.BEST_CHAIN, toMe1);
+
+        // Check we calculate the total received correctly
+        assertEquals(COIN.multiply(2), wallet.getTotalReceived());
+
+        sendMoneyToWallet(AbstractBlockChain.NewBlockType.BEST_CHAIN, COIN);
+
+        log.info("Wait for user thread");
+        Threading.waitForUserCode();
+
+        assertEquals(dataSent, dataReceived.toString());
+
     }
 }

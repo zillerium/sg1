@@ -55,7 +55,7 @@ public class DownloadedChainData {
         this.blockStore = new MemoryBlockStore(parameters);
         this.blockChain = new BlockChain(context, wallets, blockStore);
         this.connectionManager = new BlockingClientManager();
-        this.peerGroup = new PeerGroup(context, blockChain, connectionManager);
+        this.peerGroup = new PeerGroup(parameters, blockChain, connectionManager);
         peerGroup.addPeerDiscovery(new DnsDiscovery(parameters));
         peerGroup.setFastCatchupTimeSecs(Utils.currentTimeSeconds()-3600);
 
