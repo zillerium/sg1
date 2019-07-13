@@ -527,6 +527,10 @@ public abstract class NetworkParameters {
         return daaUpdateHeight;
     }
 
+    public int[] getAcceptableAddressCodes() {
+        return acceptableAddressCodes;
+    }
+
 
     public static enum ProtocolVersion {
         MINIMUM(70000),

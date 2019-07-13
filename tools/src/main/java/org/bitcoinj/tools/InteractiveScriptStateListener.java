@@ -16,6 +16,7 @@
 package org.bitcoinj.tools;
 
 import org.bitcoinj.core.*;
+import org.bitcoinj.core.ScriptException;
 import org.bitcoinj.params.MainNetParams;
 import org.bitcoinj.script.*;
 

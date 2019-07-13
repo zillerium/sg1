@@ -244,10 +244,6 @@ public class BlockTest {
         assertEquals("f115afa8134171a0a686bfbe9667b60ae6fb5f6a439e0265789babc315333262",
                 block481815.getMerkleRoot().toString());
 
-        // This block has no witnesses.
-        for (Transaction tx : block481815.getTransactions())
-            assertFalse(tx.hasWitnesses());
-
         // Nevertheless, there is a witness commitment (but no witness reserved).
         Transaction coinbase = block481815.getTransactions().get(0);
         assertEquals("919a0df2253172a55bebcb9002dbe775b8511f84955b282ca6dae826fdd94f90", coinbase.getTxId().toString());
@@ -271,11 +267,6 @@ public class BlockTest {
         assertEquals("9c1ab453283035800c43eb6461eb46682b81be110a0cb89ee923882a5fd9daa4", coinbase.getTxId().toString());
         assertEquals("2bbda73aa4e561e7f849703994cc5e563e4bcf103fb0f6fef5ae44c95c7b83a6",
                 coinbase.getWTxId().toString());
-        Sha256Hash witnessCommitment = coinbase.findWitnessCommitment();
-        assertEquals("c3c1145d8070a57e433238e42e4c022c1e51ca2a958094af243ae1ee252ca106", witnessCommitment.toString());
-        byte[] witnessReserved = coinbase.getInput(0).getWitness().getPush(0);
-        assertEquals("0000000000000000000000000000000000000000000000000000000000000000", HEX.encode(witnessReserved));
-        block481829.checkWitnessRoot();
     }
 
     @Test

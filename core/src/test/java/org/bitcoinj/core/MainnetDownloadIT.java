@@ -40,6 +40,6 @@ public class MainnetDownloadIT {
     @Test
     public void testDownloadedChain() throws BlockStoreException {
         assert(data.blockChain.getBestChainHeight() > 571806);
-        assert(data.blockStore.get(new Sha256Hash("00000000000000000891f8f76a025cfb7a1b8e9fb0c30eb9b7e1dd1a17e0ee8b")).getHeight() == 571806);
+        assert(data.blockStore.get(Sha256Hash.wrap("00000000000000000891f8f76a025cfb7a1b8e9fb0c30eb9b7e1dd1a17e0ee8b")).getHeight() == 571806);
     }
 }
