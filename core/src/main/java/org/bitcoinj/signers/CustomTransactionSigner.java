@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static org.bitcoinj.script.Script.ALL_VERIFY_FLAGS;
 
 /**
  * <p>This signer may be used as a template for creating custom multisig transaction signers.</p>
@@ -71,8 +72,8 @@ public abstract class CustomTransactionSigner implements TransactionSigner {
                 // We assume if its already signed, its hopefully got a SIGHASH type that will not invalidate when
                 // we sign missing pieces (to check this would require either assuming any signatures are signing
                 // standard output types or a way to get processed signatures out of script execution)
-                txIn.getScriptSig().correctlySpends(tx, i, txIn.getWitness(), txOut.getValue(), txOut.getScriptPubKey(),
-                        Script.ALL_VERIFY_FLAGS);
+                txIn.getScriptSig().correctlySpends(tx, i, txIn.getConnectedOutput().getScriptPubKey(),
+                        txIn.getValue(), ALL_VERIFY_FLAGS);
                 log.warn("Input {} already correctly spends output, assuming SIGHASH type used will be safe and skipping signing.", i);
                 continue;
             } catch (ScriptException e) {
@@ -85,9 +86,12 @@ public abstract class CustomTransactionSigner implements TransactionSigner {
                 continue;
             }
 
-            Sha256Hash sighash = tx.hashForSignature(i, redeemData.redeemScript, Transaction.SigHash.ALL, false);
+            Sha256Hash sighash = propTx.useForkId ?
+                    tx.hashForWitnessSignature(i, redeemData.redeemScript, tx.getInput(i).getConnectedOutput().getValue(), Transaction.SigHash.ALL, false) :
+                    tx.hashForSignature(i, redeemData.redeemScript, Transaction.SigHash.ALL, false);
             SignatureAndKey sigKey = getSignature(sighash, propTx.keyPaths.get(scriptPubKey));
-            TransactionSignature txSig = new TransactionSignature(sigKey.sig, Transaction.SigHash.ALL, false);
+            TransactionSignature txSig = new TransactionSignature(sigKey.sig, Transaction.SigHash.ALL,
+                    false, propTx.useForkId);
             int sigIndex = inputScript.getSigInsertionIndex(sighash, sigKey.pubKey);
             inputScript = scriptPubKey.getScriptSigWithSignature(inputScript, txSig.encodeToBitcoin(), sigIndex);
             txIn.setScriptSig(inputScript);

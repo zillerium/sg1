@@ -4040,6 +4040,7 @@ public class Wallet extends BaseTaggableObject
      * @throws MultipleOpReturnRequested if there is more than one OP_RETURN output for the resultant transaction.
      */
     public SendResult sendCoins(SendRequest request) throws InsufficientMoneyException {
+        request.setUseForkId(true);
         TransactionBroadcaster broadcaster = vTransactionBroadcaster;
         checkState(broadcaster != null, "No transaction broadcaster is configured");
         return sendCoins(broadcaster, request);
@@ -4063,6 +4064,12 @@ public class Wallet extends BaseTaggableObject
         Transaction tx = sendCoinsOffline(request);
         peer.sendMessage(tx);
         return tx;
+    }
+
+    public SendResult sendCoins(TransactionBroadcaster broadcaster, Address to, Coin value, boolean useforkId) throws InsufficientMoneyException {
+        SendRequest request = SendRequest.to(to, value);
+        request.setUseForkId(useforkId);
+        return sendCoins(broadcaster, request);
     }
 
     public SendResult sendData(TransactionBroadcaster broadcaster, byte[] data, boolean useforkId) throws InsufficientMoneyException {
@@ -4110,9 +4117,12 @@ public class Wallet extends BaseTaggableObject
      * @throws MultipleOpReturnRequested if there is more than one OP_RETURN output for the resultant transaction.
      */
     public void completeTx(SendRequest req) throws InsufficientMoneyException {
+        req.setUseForkId(true);
         lock.lock();
         try {
             checkArgument(!req.completed, "Given SendRequest has already been completed.");
+            if(req.getUseForkId())
+                req.tx.setVersion(Transaction.CURRENT_VERSION);
             // Calculate the amount of value we need to import.
             Coin value = Coin.ZERO;
             for (TransactionOutput output : req.tx.getOutputs()) {
@@ -4230,6 +4240,7 @@ public class Wallet extends BaseTaggableObject
      * transaction will be complete in the end.</p>
      */
     public void signTransaction(SendRequest req) {
+        req.setUseForkId(true);
         lock.lock();
         try {
             Transaction tx = req.tx;
@@ -4254,8 +4265,8 @@ public class Wallet extends BaseTaggableObject
                     // We assume if its already signed, its hopefully got a SIGHASH type that will not invalidate when
                     // we sign missing pieces (to check this would require either assuming any signatures are signing
                     // standard output types or a way to get processed signatures out of script execution)
-                    txIn.getScriptSig().correctlySpends(tx, i, txIn.getWitness(), connectedOutput.getValue(),
-                            connectedOutput.getScriptPubKey(), Script.ALL_VERIFY_FLAGS);
+                    txIn.getScriptSig().correctlySpends(tx, i, connectedOutput.getScriptPubKey(), connectedOutput.getValue(),
+                            Script.ALL_VERIFY_FLAGS);
                     log.warn("Input {} already correctly spends output, assuming SIGHASH type used will be safe and skipping signing.", i);
                     continue;
                 } catch (ScriptException e) {
@@ -4266,10 +4277,9 @@ public class Wallet extends BaseTaggableObject
                 RedeemData redeemData = txIn.getConnectedRedeemData(maybeDecryptingKeyBag);
                 checkNotNull(redeemData, "Transaction exists in wallet that we cannot redeem: %s", txIn.getOutpoint().getHash());
                 txIn.setScriptSig(scriptPubKey.createEmptyInputScript(redeemData.keys.get(0), redeemData.redeemScript));
-                txIn.setWitness(scriptPubKey.createEmptyWitness(redeemData.keys.get(0)));
             }
 
-            TransactionSigner.ProposedTransaction proposal = new TransactionSigner.ProposedTransaction(tx);
+            TransactionSigner.ProposedTransaction proposal = new TransactionSigner.ProposedTransaction(tx, req.getUseForkId());
             for (TransactionSigner signer : signers) {
                 if (!signer.signInputs(proposal, maybeDecryptingKeyBag))
                     log.info("{} returned false for the tx", signer.getClass().getName());
@@ -5101,7 +5111,6 @@ public class Wallet extends BaseTaggableObject
                 TransactionInput input = tx.addInput(selectedOutput);
                 // If the scriptBytes don't default to none, our size calculations will be thrown off.
                 checkState(input.getScriptBytes().length == 0);
-                checkState(!input.hasWitness());
             }
 
             int size = tx.unsafeBitcoinSerialize().length;

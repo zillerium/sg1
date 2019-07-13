@@ -81,8 +81,6 @@ public class TransactionInput extends ChildMessage {
     @Nullable
     private Coin value;
 
-    private TransactionWitness witness;
-
     /**
      * Creates an input that connects to nothing - used only in creation of coinbase transactions.
      */
@@ -278,31 +276,6 @@ public class TransactionInput extends ChildMessage {
         return value;
     }
 
-    /**
-     * Get the transaction witness of this input.
-     * 
-     * @return the witness of the input
-     */
-    public TransactionWitness getWitness() {
-        return witness != null ? witness : TransactionWitness.EMPTY;
-    }
-
-    /**
-     * Set the transaction witness of an input.
-     */
-    public void setWitness(TransactionWitness witness) {
-        this.witness = witness;
-    }
-
-    /**
-     * Determine if the transaction has witnesses.
-     * 
-     * @return true if the transaction has witnesses
-     */
-    public boolean hasWitness() {
-        return witness != null && witness.getPushCount() != 0;
-    }
-
     public enum ConnectionResult {
         NO_SUCH_TX,
         ALREADY_SPENT,
@@ -467,15 +440,17 @@ public class TransactionInput extends ChildMessage {
      * @throws VerificationException If the outpoint doesn't match the given output.
      */
     public void verify(TransactionOutput output) throws VerificationException {
+        Coin inputValue = Coin.ZERO;
         if (output.parent != null) {
             if (!getOutpoint().getHash().equals(output.getParentTransaction().getTxId()))
                 throw new VerificationException("This input does not refer to the tx containing the output.");
             if (getOutpoint().getIndex() != output.getIndex())
                 throw new VerificationException("This input refers to a different output on the given tx.");
+            if (getOutpoint().getConnectedOutput() != null)
+                inputValue = getOutpoint().getConnectedOutput().getValue();
         }
         Script pubKey = output.getScriptPubKey();
-        getScriptSig().correctlySpends(getParentTransaction(), getIndex(), getWitness(), getValue(), pubKey,
-                Script.ALL_VERIFY_FLAGS);
+        getScriptSig().correctlySpends(getParentTransaction(), getIndex(), pubKey, inputValue, Script.ALL_VERIFY_FLAGS);
     }
 
     /**
@@ -539,8 +514,8 @@ public class TransactionInput extends ChildMessage {
                 s.append(": COINBASE");
             } else {
                 s.append(" for [").append(outpoint).append("]: ").append(getScriptSig());
-                String flags = Joiner.on(", ").skipNulls().join(hasWitness() ? "witness" : null,
-                        hasSequence() ? "sequence: " + Long.toHexString(sequence) : null,
+                String flags = Joiner.on(", ").skipNulls().join(hasSequence() ? "sequence: "
+                                + Long.toHexString(sequence) : null,
                         isOptInFullRBF() ? "opts into full RBF" : null);
                 if (!flags.isEmpty())
                     s.append(" (").append(flags).append(')');

@@ -148,6 +148,7 @@ public class TransactionSignature extends ECKey.ECDSASignature {
     public boolean anyoneCanPay() {
         return (sighashFlags & Transaction.SigHash.ANYONECANPAY.value) != 0;
     }
+
     public boolean useForkId() {
         return (sighashFlags & SigHash.FORKID.value) != 0;
     }
@@ -180,7 +181,7 @@ public class TransactionSignature extends ECKey.ECDSASignature {
 
     @Override
     public ECKey.ECDSASignature toCanonicalised() {
-        return new TransactionSignature(super.toCanonicalised(), sigHashMode(), anyoneCanPay());
+        return new TransactionSignature(super.toCanonicalised(), sigHashMode(), anyoneCanPay(), useForkId());
     }
 
     /**

@@ -166,6 +166,7 @@ public class SendRequest {
      */
     public static SendRequest to(Address destination, Coin value) {
         SendRequest req = new SendRequest();
+        req.setUseForkId(true);
         final NetworkParameters parameters = destination.getParameters();
         checkNotNull(parameters, "Address is for an unknown network");
         req.tx = new Transaction(parameters);
@@ -183,6 +184,7 @@ public class SendRequest {
      */
     public static SendRequest to(NetworkParameters params, ECKey destination, Coin value) {
         SendRequest req = new SendRequest();
+        req.setUseForkId(true);
         req.tx = new Transaction(params);
         req.tx.addOutput(value, destination);
         return req;
@@ -246,6 +248,7 @@ public class SendRequest {
 
     public static SendRequest toCLTVPaymentChannel(NetworkParameters params, BigInteger time, ECKey from, ECKey to, Coin value) {
         SendRequest req = new SendRequest();
+        req.setUseForkId(true);
         Script output = ScriptBuilder.createCLTVPaymentChannelOutput(time, from, to);
         req.tx = new Transaction(params);
         req.tx.addOutput(value, output);

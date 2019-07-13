@@ -69,7 +69,7 @@ public class Script {
         }
     }
 
-    /** Flags to pass to {@link Script#correctlySpends(Transaction, long, Script, Set)}.
+    /** Flags to pass to {@link Script#correctlySpends(Transaction, long, Script, Coin, Set)}.
      * Note currently only P2SH, DERSIG and NULLDUMMY are actually supported.
      */
     public enum VerifyFlag {
@@ -404,18 +404,6 @@ public class Script {
         } else if (ScriptPattern.isP2SH(this)) {
             checkArgument(redeemScript != null, "Redeem script required to create P2SH input script");
             return ScriptBuilder.createP2SHMultiSigInputScript(null, redeemScript);
-        } else {
-            throw new ScriptException(ScriptError.SCRIPT_ERR_UNKNOWN_ERROR, "Do not understand script type: " + this);
-        }
-    }
-
-    public TransactionWitness createEmptyWitness(ECKey key) {
-        if (ScriptPattern.isP2WPKH(this)) {
-            checkArgument(key != null, "Key required to create P2WPKH witness");
-            return TransactionWitness.EMPTY;
-        } else if (ScriptPattern.isP2PK(this) || ScriptPattern.isP2PKH(this)
-                || ScriptPattern.isP2SH(this)) {
-            return null; // no witness
         } else {
             throw new ScriptException(ScriptError.SCRIPT_ERR_UNKNOWN_ERROR, "Do not understand script type: " + this);
         }
@@ -1475,13 +1463,14 @@ public class Script {
                 case OP_CHECKSIGVERIFY:
                     if (txContainingThis == null)
                         throw new IllegalStateException("Script attempted signature check but no tx was provided");
-                    executeCheckSig(txContainingThis, (int) index, script, stack, lastCodeSepLocation, opcode, verifyFlags);
+                    executeCheckSig(txContainingThis, (int) index, script, stack, lastCodeSepLocation, opcode, value, verifyFlags);
                     break;
                 case OP_CHECKMULTISIG:
                 case OP_CHECKMULTISIGVERIFY:
                     if (txContainingThis == null)
                         throw new IllegalStateException("Script attempted signature check but no tx was provided");
-                    opCount = executeMultiSig(txContainingThis, (int) index, script, stack, opCount, lastCodeSepLocation, opcode, verifyFlags);
+                    opCount = executeMultiSig(txContainingThis, (int) index, script, stack, opCount, lastCodeSepLocation,
+                            opcode, value, verifyFlags);
                     break;
                 case OP_CHECKLOCKTIMEVERIFY:
                     if (!verifyFlags.contains(VerifyFlag.CHECKLOCKTIMEVERIFY)) {
@@ -1640,7 +1629,7 @@ public class Script {
     }
 
     private static void executeCheckSig(Transaction txContainingThis, int index, Script script, LinkedList<byte[]> stack,
-                                        int lastCodeSepLocation, int opcode, 
+                                        int lastCodeSepLocation, int opcode, Coin value,
                                         Set<VerifyFlag> verifyFlags) throws ScriptException {
         final boolean requireCanonical = verifyFlags.contains(VerifyFlag.STRICTENC)
             || verifyFlags.contains(VerifyFlag.DERSIG)
@@ -1668,7 +1657,10 @@ public class Script {
                 verifyFlags.contains(VerifyFlag.LOW_S));
 
             // TODO: Should check hash type is known
-            Sha256Hash hash = txContainingThis.hashForSignature(index, connectedScript, (byte) sig.sighashFlags);
+            // TODO: Should check hash type is known
+            Sha256Hash hash = sig.useForkId() ?
+                    txContainingThis.hashForWitnessSignature(index, connectedScript, value, sig.sigHashMode(), sig.anyoneCanPay()) :
+                    txContainingThis.hashForSignature(index, connectedScript, (byte) sig.sighashFlags);
             sigValid = ECKey.verify(hash.getBytes(), sig, pubKey);
         } catch (SignatureDecodeException e) {
             // This exception occurs when signing as we run partial/invalid scripts to see if they need more
@@ -1691,7 +1683,7 @@ public class Script {
     }
 
     private static int executeMultiSig(Transaction txContainingThis, int index, Script script, LinkedList<byte[]> stack,
-                                       int opCount, int lastCodeSepLocation, int opcode, 
+                                       int opCount, int lastCodeSepLocation, int opcode, Coin value,
                                        Set<VerifyFlag> verifyFlags) throws ScriptException {
         final boolean requireCanonical = verifyFlags.contains(VerifyFlag.STRICTENC)
             || verifyFlags.contains(VerifyFlag.DERSIG)
@@ -1745,7 +1737,9 @@ public class Script {
             // more expensive than hashing, its not a big deal.
             try {
                 TransactionSignature sig = TransactionSignature.decodeFromBitcoin(sigs.getFirst(), requireCanonical, false);
-                Sha256Hash hash = txContainingThis.hashForSignature(index, connectedScript, (byte) sig.sighashFlags);
+                Sha256Hash hash = sig.useForkId() ?
+                        txContainingThis.hashForWitnessSignature(index, connectedScript, value, sig.sigHashMode(), sig.anyoneCanPay()) :
+                        txContainingThis.hashForSignature(index, connectedScript, (byte) sig.sighashFlags);
                 if (ECKey.verify(hash.getBytes(), sig, pubKey))
                     sigs.pollFirst();
             } catch (Exception e) {
@@ -1780,50 +1774,13 @@ public class Script {
      *                         Accessing txContainingThis from another thread while this method runs results in undefined behavior.
      * @param scriptSigIndex The index in txContainingThis of the scriptSig (note: NOT the index of the scriptPubKey).
      * @param scriptPubKey The connected scriptPubKey containing the conditions needed to claim the value.
-     * @deprecated Use {@link #correctlySpends(Transaction, int, TransactionWitness, Coin, Script, Set)}
-     * instead so that verification flags do not change as new verification options
+     *instead so that verification flags do not change as new verification options
      * are added.
      */
     @Deprecated
     public void correctlySpends(Transaction txContainingThis, long scriptSigIndex, Script scriptPubKey)
             throws ScriptException {
-        correctlySpends(txContainingThis, scriptSigIndex, scriptPubKey, ALL_VERIFY_FLAGS);
-    }
-
-    /**
-     * Verifies that this script (interpreted as a scriptSig) correctly spends the given scriptPubKey.
-     * @param txContainingThis The transaction in which this input scriptSig resides.
-     *                         Accessing txContainingThis from another thread while this method runs results in undefined behavior.
-     * @param scriptSigIndex The index in txContainingThis of the scriptSig (note: NOT the index of the scriptPubKey).
-     * @param scriptPubKey The connected scriptPubKey containing the conditions needed to claim the value.
-     * @param witness Transaction witness belonging to the transaction input containing this script. Needed for SegWit.
-     * @param value Value of the output. Needed for SegWit scripts.
-     * @param verifyFlags Each flag enables one validation rule.
-     */
-    public void correctlySpends(Transaction txContainingThis, int scriptSigIndex, @Nullable TransactionWitness witness, @Nullable Coin value,
-            Script scriptPubKey, Set<VerifyFlag> verifyFlags) throws ScriptException {
-        if (ScriptPattern.isP2WPKH(scriptPubKey)) {
-            // For SegWit, full validation isn't implemented. So we simply check the signature. P2SH_P2WPKH is handled
-            // by the P2SH code for now.
-            if (witness.getPushCount() < 2)
-                throw new ScriptException(ScriptError.SCRIPT_ERR_WITNESS_PROGRAM_WITNESS_EMPTY, witness.toString());
-            TransactionSignature signature;
-            try {
-                signature = TransactionSignature.decodeFromBitcoin(witness.getPush(0), true, true);
-            } catch (SignatureDecodeException x) {
-                throw new ScriptException(ScriptError.SCRIPT_ERR_SIG_DER, "Cannot decode", x);
-            }
-            ECKey pubkey = ECKey.fromPublicOnly(witness.getPush(1));
-            Script scriptCode = new ScriptBuilder().data(ScriptBuilder.createP2PKHOutputScript(pubkey).getProgram())
-                    .build();
-            Sha256Hash sigHash = txContainingThis.hashForWitnessSignature(scriptSigIndex, scriptCode, value,
-                    signature.sigHashMode(), false);
-            boolean validSig = pubkey.verify(sigHash, signature);
-            if (!validSig)
-                throw new ScriptException(ScriptError.SCRIPT_ERR_CHECKSIGVERIFY, "Invalid signature");
-        } else {
-            correctlySpends(txContainingThis, scriptSigIndex, scriptPubKey, verifyFlags);
-        }
+        correctlySpends(txContainingThis, scriptSigIndex, scriptPubKey, Coin.ZERO, ALL_VERIFY_FLAGS);
     }
 
     /**
@@ -1834,7 +1791,7 @@ public class Script {
      * @param scriptPubKey The connected scriptPubKey containing the conditions needed to claim the value.
      * @param verifyFlags Each flag enables one validation rule.
      */
-    public void correctlySpends(Transaction txContainingThis, long scriptSigIndex, Script scriptPubKey,
+    public void correctlySpends(Transaction txContainingThis, long scriptSigIndex, Script scriptPubKey, Coin value,
                                 Set<VerifyFlag> verifyFlags) throws ScriptException {
         // Clone the transaction because executing the script involves editing it, and if we die, we'll leave
         // the tx half broken (also it's not so thread safe to work on it directly.
@@ -1849,10 +1806,10 @@ public class Script {
         LinkedList<byte[]> stack = new LinkedList<>();
         LinkedList<byte[]> p2shStack = null;
         
-        executeScript(txContainingThis, scriptSigIndex, this, stack, Coin.ZERO, verifyFlags);
+        executeScript(txContainingThis, scriptSigIndex, this, stack, value, verifyFlags);
         if (verifyFlags.contains(VerifyFlag.P2SH))
             p2shStack = new LinkedList<>(stack);
-        executeScript(txContainingThis, scriptSigIndex, scriptPubKey, stack, Coin.ZERO, verifyFlags);
+        executeScript(txContainingThis, scriptSigIndex, scriptPubKey, stack, value, verifyFlags);
         
         if (stack.size() == 0)
             throw new ScriptException(ScriptError.SCRIPT_ERR_EVAL_FALSE, "Stack empty at end of script execution.");

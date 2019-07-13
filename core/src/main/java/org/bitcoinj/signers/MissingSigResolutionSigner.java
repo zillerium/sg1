@@ -19,7 +19,6 @@ package org.bitcoinj.signers;
 
 import org.bitcoinj.core.ECKey;
 import org.bitcoinj.core.TransactionInput;
-import org.bitcoinj.core.TransactionWitness;
 import org.bitcoinj.crypto.TransactionSignature;
 import org.bitcoinj.script.Script;
 import org.bitcoinj.script.ScriptChunk;
@@ -88,17 +87,6 @@ public class MissingSigResolutionSigner implements TransactionSigner {
                         throw new ECKey.MissingPrivateKeyException();
                     } else if (missingSigsMode == Wallet.MissingSigsMode.USE_DUMMY_SIG) {
                         txIn.setScriptSig(scriptPubKey.getScriptSigWithSignature(inputScript, dummySig, 0));
-                    }
-                }
-            } else if (ScriptPattern.isP2WPKH(scriptPubKey)) {
-                if (txIn.getWitness() == null || txIn.getWitness().equals(TransactionWitness.EMPTY)
-                        || txIn.getWitness().getPush(0).length == 0) {
-                    if (missingSigsMode == Wallet.MissingSigsMode.THROW) {
-                        throw new ECKey.MissingPrivateKeyException();
-                    } else if (missingSigsMode == Wallet.MissingSigsMode.USE_DUMMY_SIG) {
-                        ECKey key = keyBag.findKeyFromPubKeyHash(
-                                ScriptPattern.extractHashFromP2WH(scriptPubKey), Script.ScriptType.P2WPKH);
-                        txIn.setWitness(TransactionWitness.redeemP2WPKH(TransactionSignature.dummy(), key));
                     }
                 }
             } else {

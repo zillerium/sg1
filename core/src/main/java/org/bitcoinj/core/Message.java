@@ -220,12 +220,6 @@ public abstract class Message {
 
         // No cached array available so serialize parts by stream.
         ByteArrayOutputStream stream = new UnsafeByteArrayOutputStream(length < 32 ? 32 : length + 32);
-        try {
-            bitcoinSerializeToStream(stream);
-        } catch (IOException e) {
-            // Cannot happen, we are serializing to a memory stream.
-        }
-
         if (serializer.isParseRetainMode()) {
             // A free set of steak knives!
             // If there happens to be a call to this method we gain an opportunity to recache
@@ -262,8 +256,6 @@ public abstract class Message {
             stream.write(payload, offset, length);
             return;
         }
-
-        bitcoinSerializeToStream(stream);
     }
 
     /**
@@ -272,6 +264,7 @@ public abstract class Message {
     protected void bitcoinSerializeToStream(OutputStream stream) throws IOException {
         log.error("Error: {} class has not implemented bitcoinSerializeToStream method.  Generating message with no payload", getClass());
     }
+
 
     /**
      * This method is a NOP for all classes except Block and Transaction.  It is only declared in Message
