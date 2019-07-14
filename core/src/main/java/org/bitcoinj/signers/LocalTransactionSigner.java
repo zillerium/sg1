@@ -17,20 +17,26 @@
 
 package org.bitcoinj.signers;
 
-import org.bitcoinj.core.*;
+import java.util.EnumSet;
+
+import org.bitcoinj.core.Coin;
+import org.bitcoinj.core.ECKey;
+import org.bitcoinj.core.LegacyAddress;
+import org.bitcoinj.core.Transaction;
+import org.bitcoinj.core.TransactionInput;
+import org.bitcoinj.core.TransactionOutput;
+import org.bitcoinj.core.TransactionWitness;
 import org.bitcoinj.crypto.DeterministicKey;
 import org.bitcoinj.crypto.TransactionSignature;
 import org.bitcoinj.script.Script;
-import org.bitcoinj.script.Script.VerifyFlag;
 import org.bitcoinj.script.ScriptBuilder;
 import org.bitcoinj.script.ScriptException;
 import org.bitcoinj.script.ScriptPattern;
+import org.bitcoinj.script.Script.VerifyFlag;
 import org.bitcoinj.wallet.KeyBag;
 import org.bitcoinj.wallet.RedeemData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.EnumSet;
 
 /**
  * <p>{@link TransactionSigner} implementation for signing inputs using keys from provided {@link KeyBag}.</p>
@@ -76,7 +82,8 @@ public class LocalTransactionSigner implements TransactionSigner {
                 // We assume if its already signed, its hopefully got a SIGHASH type that will not invalidate when
                 // we sign missing pieces (to check this would require either assuming any signatures are signing
                 // standard output types or a way to get processed signatures out of script execution)
-                txIn.getScriptSig().correctlySpends(tx, i, connectedOutput.getScriptPubKey(), connectedOutput.getValue(), MINIMUM_VERIFY_FLAGS);
+                txIn.getScriptSig().correctlySpends(tx, i, txIn.getWitness(), connectedOutput.getValue(),
+                        connectedOutput.getScriptPubKey(), MINIMUM_VERIFY_FLAGS);
                 log.warn("Input {} already correctly spends output, assuming SIGHASH type used will be safe and skipping signing.", i);
                 continue;
             } catch (ScriptException e) {
@@ -108,10 +115,8 @@ public class LocalTransactionSigner implements TransactionSigner {
             try {
                 if (ScriptPattern.isP2PK(scriptPubKey) || ScriptPattern.isP2PKH(scriptPubKey)
                         || ScriptPattern.isP2SH(scriptPubKey)) {
-                    TransactionSignature signature = propTx.useForkId ?
-                            tx.calculateWitnessSignature(i, key, script, tx.getInput(i).getConnectedOutput().getValue(), Transaction.SigHash.ALL, false) :
-                            tx.calculateSignature(i, key, script, Transaction.SigHash.ALL, false);
-
+                    TransactionSignature signature = tx.calculateSignature(i, key, script, Transaction.SigHash.ALL,
+                            false);
 
                     // at this point we have incomplete inputScript with OP_0 in place of one or more signatures. We
                     // already have calculated the signature using the local key and now need to insert it in the
@@ -124,6 +129,16 @@ public class LocalTransactionSigner implements TransactionSigner {
                     inputScript = scriptPubKey.getScriptSigWithSignature(inputScript, signature.encodeToBitcoin(),
                             sigIndex);
                     txIn.setScriptSig(inputScript);
+                    txIn.setWitness(null);
+                } else if (ScriptPattern.isP2WPKH(scriptPubKey)) {
+                    Script scriptCode = new ScriptBuilder().data(
+                            ScriptBuilder.createOutputScript(LegacyAddress.fromKey(tx.getParams(), key)).getProgram())
+                            .build();
+                    Coin value = txIn.getValue();
+                    TransactionSignature signature = tx.calculateWitnessSignature(i, key, scriptCode, value,
+                            Transaction.SigHash.ALL, false);
+                    txIn.setScriptSig(ScriptBuilder.createEmpty());
+                    txIn.setWitness(TransactionWitness.redeemP2WPKH(signature, key));
                 } else {
                     throw new IllegalStateException(script.toString());
                 }

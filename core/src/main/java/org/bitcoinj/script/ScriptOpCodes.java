@@ -1,6 +1,5 @@
 /*
  * Copyright 2013 Google Inc.
- * Copyright 2018 the bitcoinj-cash developers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,20 +12,19 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
- * This file has been modified by the bitcoinj-cash developers for the bitcoinj-cash project.
- * The original file was from the bitcoinj project (https://github.com/bitcoinj/bitcoinj).
  */
 
 package org.bitcoinj.script;
 
+import com.google.common.collect.BiMap;
+import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
 
 import java.util.Map;
 
 /**
  * Various constants that define the assembly-like scripting language that forms part of the Bitcoin protocol.
- * See {@link org.bitcoinj.script.Script} for details. Also provides a method to convert them to a string.
+ * See {@link Script} for details. Also provides a method to convert them to a string.
  */
 public class ScriptOpCodes {
     // push value
@@ -90,9 +88,9 @@ public class ScriptOpCodes {
 
     // splice ops
     public static final int OP_CAT = 0x7e;
-    public static final int OP_SPLIT = 0x7f;
-    public static final int OP_NUM2BIN = 0x80;
-    public static final int OP_BIN2NUM = 0x81;
+    public static final int OP_SUBSTR = 0x7f;
+    public static final int OP_LEFT = 0x80;
+    public static final int OP_RIGHT = 0x81;
     public static final int OP_SIZE = 0x82;
 
     // bit logic
@@ -156,6 +154,7 @@ public class ScriptOpCodes {
     /** Deprecated by BIP 65 */
     @Deprecated
     public static final int OP_NOP2 = OP_CHECKLOCKTIMEVERIFY;
+    /** Deprecated by BIP 112 */
     @Deprecated
     public static final int OP_NOP3 = OP_CHECKSEQUENCEVERIFY;
     public static final int OP_NOP4 = 0xb3;
@@ -165,10 +164,9 @@ public class ScriptOpCodes {
     public static final int OP_NOP8 = 0xb7;
     public static final int OP_NOP9 = 0xb8;
     public static final int OP_NOP10 = 0xb9;
-
     public static final int OP_INVALIDOPCODE = 0xff;
 
-    private static final Map<Integer, String> opCodeMap = ImmutableMap.<Integer, String>builder()
+    private static final BiMap<Integer, String> opCodeMap = ImmutableBiMap.<Integer, String>builder()
         .put(OP_0, "0")
         .put(OP_PUSHDATA1, "PUSHDATA1")
         .put(OP_PUSHDATA2, "PUSHDATA2")
@@ -221,9 +219,9 @@ public class ScriptOpCodes {
         .put(OP_SWAP, "SWAP")
         .put(OP_TUCK, "TUCK")
         .put(OP_CAT, "CAT")
-        .put(OP_SPLIT, "SPLIT")
-        .put(OP_NUM2BIN, "NUM2BIN")
-        .put(OP_BIN2NUM, "BIN2NUM")
+        .put(OP_SUBSTR, "SUBSTR")
+        .put(OP_LEFT, "LEFT")
+        .put(OP_RIGHT, "RIGHT")
         .put(OP_SIZE, "SIZE")
         .put(OP_INVERT, "INVERT")
         .put(OP_AND, "AND")
@@ -282,119 +280,12 @@ public class ScriptOpCodes {
         .put(OP_NOP10, "NOP10").build();
 
     private static final Map<String, Integer> opCodeNameMap = ImmutableMap.<String, Integer>builder()
-        .put("0", OP_0)
-        .put("PUSHDATA1", OP_PUSHDATA1)
-        .put("PUSHDATA2", OP_PUSHDATA2)
-        .put("PUSHDATA4", OP_PUSHDATA4)
-        .put("1NEGATE", OP_1NEGATE)
-        .put("RESERVED", OP_RESERVED)
-        .put("1", OP_1)
-        .put("2", OP_2)
-        .put("3", OP_3)
-        .put("4", OP_4)
-        .put("5", OP_5)
-        .put("6", OP_6)
-        .put("7", OP_7)
-        .put("8", OP_8)
-        .put("9", OP_9)
-        .put("10", OP_10)
-        .put("11", OP_11)
-        .put("12", OP_12)
-        .put("13", OP_13)
-        .put("14", OP_14)
-        .put("15", OP_15)
-        .put("16", OP_16)
-        .put("NOP", OP_NOP)
-        .put("VER", OP_VER)
-        .put("IF", OP_IF)
-        .put("NOTIF", OP_NOTIF)
-        .put("VERIF", OP_VERIF)
-        .put("VERNOTIF", OP_VERNOTIF)
-        .put("ELSE", OP_ELSE)
-        .put("ENDIF", OP_ENDIF)
-        .put("VERIFY", OP_VERIFY)
-        .put("RETURN", OP_RETURN)
-        .put("TOALTSTACK", OP_TOALTSTACK)
-        .put("FROMALTSTACK", OP_FROMALTSTACK)
-        .put("2DROP", OP_2DROP)
-        .put("2DUP", OP_2DUP)
-        .put("3DUP", OP_3DUP)
-        .put("2OVER", OP_2OVER)
-        .put("2ROT", OP_2ROT)
-        .put("2SWAP", OP_2SWAP)
-        .put("IFDUP", OP_IFDUP)
-        .put("DEPTH", OP_DEPTH)
-        .put("DROP", OP_DROP)
-        .put("DUP", OP_DUP)
-        .put("NIP", OP_NIP)
-        .put("OVER", OP_OVER)
-        .put("PICK", OP_PICK)
-        .put("ROLL", OP_ROLL)
-        .put("ROT", OP_ROT)
-        .put("SWAP", OP_SWAP)
-        .put("TUCK", OP_TUCK)
-        .put("CAT", OP_CAT)
-        .put("SPLIT", OP_SPLIT)
-        .put("NUM2BIN", OP_NUM2BIN)
-        .put("BIN2NUM", OP_BIN2NUM)
-        .put("SIZE", OP_SIZE)
-        .put("INVERT", OP_INVERT)
-        .put("AND", OP_AND)
-        .put("OR", OP_OR)
-        .put("XOR", OP_XOR)
-        .put("EQUAL", OP_EQUAL)
-        .put("EQUALVERIFY", OP_EQUALVERIFY)
-        .put("RESERVED1", OP_RESERVED1)
-        .put("RESERVED2", OP_RESERVED2)
-        .put("1ADD", OP_1ADD)
-        .put("1SUB", OP_1SUB)
-        .put("2MUL", OP_2MUL)
-        .put("2DIV", OP_2DIV)
-        .put("NEGATE", OP_NEGATE)
-        .put("ABS", OP_ABS)
-        .put("NOT", OP_NOT)
-        .put("0NOTEQUAL", OP_0NOTEQUAL)
-        .put("ADD", OP_ADD)
-        .put("SUB", OP_SUB)
-        .put("MUL", OP_MUL)
-        .put("DIV", OP_DIV)
-        .put("MOD", OP_MOD)
-        .put("LSHIFT", OP_LSHIFT)
-        .put("RSHIFT", OP_RSHIFT)
-        .put("BOOLAND", OP_BOOLAND)
-        .put("BOOLOR", OP_BOOLOR)
-        .put("NUMEQUAL", OP_NUMEQUAL)
-        .put("NUMEQUALVERIFY", OP_NUMEQUALVERIFY)
-        .put("NUMNOTEQUAL", OP_NUMNOTEQUAL)
-        .put("LESSTHAN", OP_LESSTHAN)
-        .put("GREATERTHAN", OP_GREATERTHAN)
-        .put("LESSTHANOREQUAL", OP_LESSTHANOREQUAL)
-        .put("GREATERTHANOREQUAL", OP_GREATERTHANOREQUAL)
-        .put("MIN", OP_MIN)
-        .put("MAX", OP_MAX)
-        .put("WITHIN", OP_WITHIN)
-        .put("RIPEMD160", OP_RIPEMD160)
-        .put("SHA1", OP_SHA1)
-        .put("SHA256", OP_SHA256)
-        .put("HASH160", OP_HASH160)
-        .put("HASH256", OP_HASH256)
-        .put("CODESEPARATOR", OP_CODESEPARATOR)
-        .put("CHECKSIG", OP_CHECKSIG)
-        .put("CHECKSIGVERIFY", OP_CHECKSIGVERIFY)
-        .put("CHECKMULTISIG", OP_CHECKMULTISIG)
-        .put("CHECKMULTISIGVERIFY", OP_CHECKMULTISIGVERIFY)
-        .put("NOP1", OP_NOP1)
-        .put("CHECKLOCKTIMEVERIFY", OP_CHECKLOCKTIMEVERIFY)
-        .put("NOP2", OP_NOP2)
-        .put("CHECKSEQUENCEVERIFY", OP_CHECKSEQUENCEVERIFY)
-        .put("NOP3", OP_NOP3)
-        .put("NOP4", OP_NOP4)
-        .put("NOP5", OP_NOP5)
-        .put("NOP6", OP_NOP6)
-        .put("NOP7", OP_NOP7)
-        .put("NOP8", OP_NOP8)
-        .put("NOP9", OP_NOP9)
-        .put("NOP10", OP_NOP10).build();
+            .putAll(opCodeMap.inverse())
+            .put("OP_FALSE", OP_FALSE)
+            .put("OP_TRUE", OP_TRUE)
+            .put("NOP2", OP_NOP2)
+            .put("NOP3", OP_NOP3)
+            .build();
 
     /**
      * Converts the given OpCode into a string (eg "0", "PUSHDATA", or "NON_OP(10)")

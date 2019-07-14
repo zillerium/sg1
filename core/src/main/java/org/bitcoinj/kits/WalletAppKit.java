@@ -24,7 +24,6 @@ import org.bitcoinj.core.listeners.*;
 import org.bitcoinj.core.*;
 import org.bitcoinj.crypto.DeterministicKey;
 import org.bitcoinj.net.discovery.*;
-import org.bitcoinj.protocols.channels.*;
 import org.bitcoinj.script.Script;
 import org.bitcoinj.store.*;
 import org.bitcoinj.wallet.*;
@@ -69,7 +68,7 @@ public class WalletAppKit extends AbstractIdleService {
     protected final KeyChainGroupStructure structure;
     protected final String filePrefix;
     protected volatile BlockChain vChain;
-    protected volatile BlockStore vStore;
+    protected volatile SPVBlockStore vStore;
     protected volatile Wallet vWallet;
     protected volatile PeerGroup vPeerGroup;
 
@@ -246,13 +245,6 @@ public class WalletAppKit extends AbstractIdleService {
     }
 
     /**
-     * Override this to use a {@link BlockStore} that isn't the default of {@link SPVBlockStore}.
-     */
-    protected BlockStore provideBlockStore(File file) throws BlockStoreException {
-        return new SPVBlockStore(params, file);
-    }
-
-    /**
      * This method is invoked on a background thread after all objects are initialised, but before the peer group
      * or block chain download is started. You can tweak the objects configuration here.
      */
@@ -301,7 +293,7 @@ public class WalletAppKit extends AbstractIdleService {
             vWallet = createOrLoadWallet(shouldReplayWallet);
 
             // Initiate Bitcoin network objects (block store, blockchain and peer group)
-            vStore = provideBlockStore(chainFile);
+            vStore = new SPVBlockStore(params, chainFile);
             if (!chainFileExists || restoreFromSeed != null || restoreFromKey != null) {
                 if (checkpoints == null && !Utils.isAndroidRuntime()) {
                     checkpoints = CheckpointManager.openStream(params);
@@ -313,20 +305,14 @@ public class WalletAppKit extends AbstractIdleService {
                     if (restoreFromSeed != null) {
                         time = restoreFromSeed.getCreationTimeSeconds();
                         if (chainFileExists) {
-                            log.info("Deleting the chain file in preparation from restore.");
-                            vStore.close();
-                            if (!chainFile.delete())
-                                throw new IOException("Failed to delete chain file in preparation for restore.");
-                            vStore = provideBlockStore(chainFile);
+                            log.info("Clearing the chain file in preparation for restore.");
+                            vStore.clear();
                         }
                     } else if (restoreFromKey != null) {
                         time = restoreFromKey.getCreationTimeSeconds();
                         if (chainFileExists) {
-                            log.info("Deleting the chain file in preparation from restore.");
-                            vStore.close();
-                            if (!chainFile.delete())
-                                throw new IOException("Failed to delete chain file in preparation for restore.");
-                            vStore = provideBlockStore(chainFile);
+                            log.info("Clearing the chain file in preparation for restore.");
+                            vStore.clear();
                         }
                     }
                     else
@@ -338,11 +324,8 @@ public class WalletAppKit extends AbstractIdleService {
                     else
                         log.warn("Creating a new uncheckpointed block store due to a wallet with a creation time of zero: this will result in a very slow chain sync");
                 } else if (chainFileExists) {
-                    log.info("Deleting the chain file in preparation from restore.");
-                    vStore.close();
-                    if (!chainFile.delete())
-                        throw new IOException("Failed to delete chain file in preparation for restore.");
-                    vStore = provideBlockStore(chainFile);
+                    log.info("Clearing the chain file in preparation for restore.");
+                    vStore.clear();
                 }
             }
             vChain = new BlockChain(params, vStore);
@@ -367,7 +350,6 @@ public class WalletAppKit extends AbstractIdleService {
                 vPeerGroup.start();
                 // Make sure we shut down cleanly.
                 installShutdownHook();
-                completeExtensionInitiations(vPeerGroup);
 
                 // TODO: Be able to use the provided download listener when doing a blocking startup.
                 final DownloadProgressTracker listener = new DownloadProgressTracker();
@@ -377,7 +359,6 @@ public class WalletAppKit extends AbstractIdleService {
                 Futures.addCallback(vPeerGroup.startAsync(), new FutureCallback() {
                     @Override
                     public void onSuccess(@Nullable Object result) {
-                        completeExtensionInitiations(vPeerGroup);
                         final DownloadProgressTracker l = downloadListener == null ? new DownloadProgressTracker() : downloadListener;
                         vPeerGroup.startBlockChainDownload(l);
                     }
@@ -478,25 +459,7 @@ public class WalletAppKit extends AbstractIdleService {
         }
     }
 
-    /*
-     * As soon as the transaction broadcaster han been created we will pass it to the
-     * payment channel extensions
-     */
-    private void completeExtensionInitiations(TransactionBroadcaster transactionBroadcaster) {
-        StoredPaymentChannelClientStates clientStoredChannels = (StoredPaymentChannelClientStates)
-                vWallet.getExtensions().get(StoredPaymentChannelClientStates.class.getName());
-        if(clientStoredChannels != null) {
-            clientStoredChannels.setTransactionBroadcaster(transactionBroadcaster);
-        }
-        StoredPaymentChannelServerStates serverStoredChannels = (StoredPaymentChannelServerStates)
-                vWallet.getExtensions().get(StoredPaymentChannelServerStates.class.getName());
-        if(serverStoredChannels != null) {
-            serverStoredChannels.setTransactionBroadcaster(transactionBroadcaster);
-        }
-    }
-
-
-    protected PeerGroup createPeerGroup() throws TimeoutException {
+    protected PeerGroup createPeerGroup() {
         return new PeerGroup(params, vChain);
     }
 

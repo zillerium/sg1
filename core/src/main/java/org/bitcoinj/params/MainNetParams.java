@@ -1,7 +1,6 @@
 /*
  * Copyright 2013 Google Inc.
  * Copyright 2015 Andreas Schildbach
- * Copyright 2018 the bitcoinj-cash developers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,17 +13,16 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
- * This file has been modified by the bitcoinj-cash developers for the bitcoinj-cash project.
- * The original file was from the bitcoinj project (https://github.com/bitcoinj/bitcoinj).
  */
 
 package org.bitcoinj.params;
 
-import org.bitcoinj.core.Sha256Hash;
-import org.bitcoinj.core.Utils;
+import org.bitcoinj.core.*;
+import org.bitcoinj.net.discovery.*;
 
-import static com.google.common.base.Preconditions.checkState;
+import java.net.*;
+
+import static com.google.common.base.Preconditions.*;
 
 /**
  * Parameters for the main production network on which people trade goods and services.
@@ -42,11 +40,13 @@ public class MainNetParams extends AbstractBitcoinNetParams {
         dumpedPrivateKeyHeader = 128;
         addressHeader = 0;
         p2shHeader = 5;
-        acceptableAddressCodes = new int[] { addressHeader, p2shHeader };
+        segwitAddressHrp = "bc";
         port = 8333;
-        packetMagic = 0xe3e1f3e8L;
-        bip32HeaderP2PKHpub = 0x0488B21E; //The 4 byte header that serializes in base58 to "xpub".
-        bip32HeaderP2PKHpriv = 0x0488ADE4; //The 4 byte header that serializes in base58 to "xprv"
+        packetMagic = 0xf9beb4d9L;
+        bip32HeaderP2PKHpub = 0x0488b21e; // The 4 byte header that serializes in base58 to "xpub".
+        bip32HeaderP2PKHpriv = 0x0488ade4; // The 4 byte header that serializes in base58 to "xprv"
+        bip32HeaderP2WPKHpub = 0x04b24746; // The 4 byte header that serializes in base58 to "zpub".
+        bip32HeaderP2WPKHpriv = 0x04b2430c; // The 4 byte header that serializes in base58 to "zprv"
 
         majorityEnforceBlockUpgrade = MAINNET_MAJORITY_ENFORCE_BLOCK_UPGRADE;
         majorityRejectBlockOutdated = MAINNET_MAJORITY_REJECT_BLOCK_OUTDATED;
@@ -66,43 +66,32 @@ public class MainNetParams extends AbstractBitcoinNetParams {
         // transactions are handled. Duplicated transactions could occur in the case where a coinbase had the same
         // extraNonce and the same outputs but appeared at different heights, and greatly complicated re-org handling.
         // Having these here simplifies block connection logic considerably.
-        checkpoints.put(11111, Sha256Hash.wrap("0000000069e244f73d78e8fd29ba2fd2ed618bd6fa2ee92559f542fdb26e7c1d"));
-        checkpoints.put(33333, Sha256Hash.wrap("000000002dd5588a74784eaa7ab0507a18ad16a236e7b1ce69f00d7ddfb5d0a6"));
-        checkpoints.put(74000, Sha256Hash.wrap("0000000000573993a3c9e41ce34471c079dcf5f52a0e824a81e7f953b8661a20"));
-        checkpoints.put(105000, Sha256Hash.wrap("00000000000291ce28027faea320c8d2b054b2e0fe44a773f3eefb151d6bdc97"));
-        checkpoints.put(134444, Sha256Hash.wrap("00000000000005b12ffd4cd315cd34ffd4a594f430ac814c91184a0d42d2b0fe"));
-        checkpoints.put(168000, Sha256Hash.wrap("000000000000099e61ea72015e79632f216fe6cb33d7899acb35b75c8303b763"));
-        checkpoints.put(193000, Sha256Hash.wrap("000000000000059f452a5f7340de6682a977387c17010ff6e6c3bd83ca8b1317"));
-        checkpoints.put(210000, Sha256Hash.wrap("000000000000048b95347e83192f69cf0366076336c639f9b7228e9ba171342e"));
-        checkpoints.put(216116, Sha256Hash.wrap("00000000000001b4f4b433e81ee46494af945cf96014816a4e2370f11b23df4e"));
-        checkpoints.put(225430, Sha256Hash.wrap("00000000000001c108384350f74090433e7fcf79a606b8e797f065b130575932"));
-        checkpoints.put(250000, Sha256Hash.wrap("000000000000003887df1f29024b06fc2200b55f8af8f35453d7be294df2d214"));
-        checkpoints.put(279000, Sha256Hash.wrap("0000000000000001ae8c72a0b0c301f67e3afca10e819efa9041e458e9bd7e40"));
-        checkpoints.put(295000, Sha256Hash.wrap("00000000000000004d9b4ef50f0f9d686fd69db2e03af35a100370c64632a983"));
-
         checkpoints.put(91722, Sha256Hash.wrap("00000000000271a2dc26e7667f8419f2e15416dc6955e5a6c6cdf3f2574dd08e"));
         checkpoints.put(91812, Sha256Hash.wrap("00000000000af0aed4792b1acee3d966af36cf5def14935db8de83d6f9306f2f"));
         checkpoints.put(91842, Sha256Hash.wrap("00000000000a4d0a398161ffc163c503763b1f4360639393e0e4c8e300e0caec"));
         checkpoints.put(91880, Sha256Hash.wrap("00000000000743f190a18c5577a3c2d2a1f610ae9601ac046a38084ccb7cd721"));
         checkpoints.put(200000, Sha256Hash.wrap("000000000000034a7dedef4a161fa058a2d67a173a90155f3a2fe6fc132e0ebf"));
-        checkpoints.put(478559, Sha256Hash.wrap("000000000000000000651ef99cb9fcbe0dadde1d424bd9f15ff20136191a5eec"));
-
-        checkpoints.put(557957, Sha256Hash.wrap("0000000000000000020973011c0bb9db0a05fc1cd6807b5da82515bdf97232a8"));
 
         dnsSeeds = new String[] {
-                "seed.bitcoinsv.io",
-                "seed.cascharia.com",
-                "seed.satoshivision.network"
+                "seed.bitcoin.sipa.be",         // Pieter Wuille
+                "dnsseed.bluematt.me",          // Matt Corallo
+                "dnsseed.bitcoin.dashjr.org",   // Luke Dashjr
+                "seed.bitcoinstats.com",        // Chris Decker
+                "seed.bitcoin.jonasschnelli.ch",// Jonas Schnelli
+                "seed.btc.petertodd.org",       // Peter Todd
+                "seed.bitcoin.sprovoost.nl",    // Sjors Provoost
+                "seed.bitnodes.io",             // Addy Yeow
+                "dnsseed.emzy.de",              // Stephan Oeste
         };
-        httpSeeds = null; /*new HttpDiscovery.Details[] {
+        httpSeeds = new HttpDiscovery.Details[] {
                 // Andreas Schildbach
                 new HttpDiscovery.Details(
                         ECKey.fromPublicOnly(Utils.HEX.decode("0238746c59d46d5408bf8b1d0af5740fe1a6e1703fcb56b2953f0b965c740d256f")),
                         URI.create("http://httpseed.bitcoin.schildbach.de/peers")
                 )
-        };*/
+        };
 
-        addrSeeds = null; /*new int[] {
+        addrSeeds = new int[] {
                 0x1ddb1032, 0x6242ce40, 0x52d6a445, 0x2dd7a445, 0x8a53cd47, 0x73263750, 0xda23c257, 0xecd4ed57,
                 0x0a40ec59, 0x75dce160, 0x7df76791, 0x89370bad, 0xa4f214ad, 0x767700ae, 0x638b0418, 0x868a1018,
                 0xcd9f332e, 0x0129653e, 0xcc92dc3e, 0x96671640, 0x56487e40, 0x5b66f440, 0xb1d01f41, 0xf1dc6041,
@@ -143,12 +132,7 @@ public class MainNetParams extends AbstractBitcoinNetParams {
                 0x6d27c257, 0x977fffad, 0x7baa5d5d, 0x1213be43, 0xb167e5a9, 0x640fe8ca, 0xbc9ea655, 0x0f820a4c,
                 0x0f097059, 0x69ac957c, 0x366d8453, 0xb1ba2844, 0x8857f081, 0x70b5be63, 0xc545454b, 0xaf36ded1,
                 0xb5a4b052, 0x21f062d1, 0x72ab89b2, 0x74a45318, 0x8312e6bc, 0xb916965f, 0x8aa7c858, 0xfe7effad,
-        };*/
-
-        // Aug, 1 hard fork
-        uahfHeight = 478559;
-        // Nov, 13 hard fork
-        daaUpdateHeight = 504031;
+        };
     }
 
     private static MainNetParams instance;

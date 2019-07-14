@@ -22,14 +22,13 @@ import org.bitcoinj.script.ScriptChunk;
 import org.bitcoinj.script.ScriptPattern;
 
 import com.google.common.base.MoreObjects;
-import com.google.common.base.Objects;
-import com.google.common.collect.Lists;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.lang.Math.*;
@@ -314,7 +313,7 @@ public class BloomFilter extends Message {
     public synchronized FilteredBlock applyAndUpdate(Block block) {
         List<Transaction> txns = block.getTransactions();
         List<Sha256Hash> txHashes = new ArrayList<>(txns.size());
-        List<Transaction> matched = Lists.newArrayList();
+        List<Transaction> matched = new ArrayList<>();
         byte[] bits = new byte[(int) Math.ceil(txns.size() / 8.0)];
         for (int i = 0; i < txns.size(); i++) {
             Transaction tx = txns.get(i);
@@ -372,6 +371,6 @@ public class BloomFilter extends Message {
 
     @Override
     public synchronized int hashCode() {
-        return Objects.hashCode(hashFuncs, nTweak, Arrays.hashCode(data));
+        return Objects.hash(hashFuncs, nTweak, Arrays.hashCode(data));
     }
 }

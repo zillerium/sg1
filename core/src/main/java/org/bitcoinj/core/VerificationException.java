@@ -87,13 +87,9 @@ public class VerificationException extends RuntimeException {
         }
     }
 
-    public static class SignatureFormatError extends VerificationException {
-        public SignatureFormatError(String msg) {
-            super(msg);
-        }
-
-        public SignatureFormatError(Exception e) {
-            super(e);
+    public static class NoncanonicalSignature extends VerificationException {
+        public NoncanonicalSignature() {
+            super("Signature encoding is not canonical");
         }
     }
 }

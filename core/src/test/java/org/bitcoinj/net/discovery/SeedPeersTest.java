@@ -19,7 +19,6 @@ package org.bitcoinj.net.discovery;
 
 import org.bitcoinj.core.NetworkParameters;
 import org.bitcoinj.params.MainNetParams;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.net.InetSocketAddress;
@@ -33,14 +32,12 @@ public class SeedPeersTest {
     private static final NetworkParameters MAINNET = MainNetParams.get();
 
     @Test
-    @Ignore
     public void getPeer_one() throws Exception{
         SeedPeers seedPeers = new SeedPeers(MAINNET);
         assertThat(seedPeers.getPeer(), notNullValue());
     }
     
     @Test
-    @Ignore
     public void getPeer_all() throws Exception{
         SeedPeers seedPeers = new SeedPeers(MAINNET);
         for (int i = 0; i < MAINNET.getAddrSeeds().length; ++i) {
@@ -50,7 +47,6 @@ public class SeedPeersTest {
     }
     
     @Test
-    @Ignore
     public void getPeers_length() throws Exception{
         SeedPeers seedPeers = new SeedPeers(MAINNET);
         InetSocketAddress[] addresses = seedPeers.getPeers(0, 0, TimeUnit.SECONDS);

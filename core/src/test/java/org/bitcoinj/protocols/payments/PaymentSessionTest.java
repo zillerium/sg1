@@ -135,7 +135,7 @@ public class PaymentSessionTest {
 
     @Test
     @Ignore("certificate expired")
-    public void getMedianProducingTimeInSecondstestPkiVerification() throws Exception {
+    public void testPkiVerification() throws Exception {
         InputStream in = getClass().getResourceAsStream("pki_test.bitcoinpaymentrequest");
         Protos.PaymentRequest paymentRequest = Protos.PaymentRequest.newBuilder().mergeFrom(in).build();
         PaymentProtocol.PkiVerificationData pkiData = PaymentProtocol.verifyPaymentRequestPki(paymentRequest,

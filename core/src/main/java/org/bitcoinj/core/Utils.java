@@ -23,7 +23,13 @@ import java.io.OutputStream;
 import java.math.BigInteger;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Locale;
+import java.util.TimeZone;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -35,10 +41,8 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Splitter;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Ordering;
 import com.google.common.io.BaseEncoding;
-import com.google.common.primitives.Ints;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
@@ -55,8 +59,6 @@ public class Utils {
     public static final Splitter WHITESPACE_SPLITTER = Splitter.on(Pattern.compile("\\s+"));
     /** Hex encoding used throughout the framework. Use with HEX.encode(byte[]) or HEX.decode(CharSequence). */
     public static final BaseEncoding HEX = BaseEncoding.base16().lowerCase();
-    // zero length arrays are immutable so we can save some object allocation by reusing the same instance.
-    public static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
 
     /**
      * Max initial size of variable length arrays and ArrayLists that could be attacked.
@@ -296,41 +298,6 @@ public class Utils {
         BigInteger result = new BigInteger(buf);
         return isNegative ? result.negate() : result;
     }
-
-    /**
-     * checks that LE encoded number is minimally represented.  That is that there are no leading zero bytes except in
-     * the case: if there's more than one byte and the most significant bit of the second-most-significant-byte is set it
-     * would conflict with the sign bit.
-     * @param bytesLE
-     * @return
-     */
-    public static boolean checkMinimallyEncodedLE(byte[] bytesLE, int maxNumSize) {
-
-        if (bytesLE.length > maxNumSize) {
-            return false;
-        }
-
-        if (bytesLE.length > 0) {
-            // Check that the number is encoded with the minimum possible number
-            // of bytes.
-            //
-            // If the most-significant-byte - excluding the sign bit - is zero
-            // then we're not minimal. Note how this test also rejects the
-            // negative-zero encoding, 0x80.
-            if ((bytesLE[bytesLE.length - 1] & 0x7f) == 0) {
-                // One exception: if there's more than one byte and the most
-                // significant bit of the second-most-significant-byte is set it
-                // would conflict with the sign bit. An example of this case is
-                // +-255, which encode to 0xff00 and 0xff80 respectively.
-                // (big-endian).
-                if (bytesLE.length <= 1 || (bytesLE[bytesLE.length - 2] & 0x80) == 0) {
-                    return false;
-                }
-            }
-        }
-
-        return true;
-    }
     
     /**
      * MPI encoded numbers are produced by the OpenSSL BN_bn2mpi function. They consist of
@@ -459,12 +426,16 @@ public class Utils {
         return mockTime != null ? mockTime : new Date();
     }
 
-    // TODO: Replace usages of this where the result is / 1000 with currentTimeSeconds.
-    /** Returns the current time in milliseconds since the epoch, or a mocked out equivalent. */
+    /**
+     * Returns the current time in milliseconds since the epoch, or a mocked out equivalent.
+     */
     public static long currentTimeMillis() {
         return mockTime != null ? mockTime.getTime() : System.currentTimeMillis();
     }
 
+    /**
+     * Returns the current time in seconds since the epoch, or a mocked out equivalent.
+     */
     public static long currentTimeSeconds() {
         return currentTimeMillis() / 1000;
     }
@@ -542,71 +513,11 @@ public class Utils {
         }
     }
 
-    /**
-     * Returns a minimally encoded encoded version of the data. That is, a version will pass the check
-     * in checkMinimallyEncodedLE(byte[] bytesLE).
-     *
-     * If the data is already minimally encoded the original byte array will be returned.
-     *
-     * inspired by: https://reviews.bitcoinabc.org/D1219
-     *
-     * @param dataLE
-     * @return
-     */
-    public static byte[] minimallyEncodeLE(byte[] dataLE) {
-
-        if (dataLE.length == 0) {
-            return dataLE;
-        }
-
-        // If the last byte is not 0x00 or 0x80, we are minimally encoded.
-        int last = dataLE[dataLE.length - 1];
-        if ((last & 0x7f) != 0) {
-            return dataLE;
-        }
-
-        // If the script is one byte long, then we have a zero, which encodes as an
-        // empty array.
-        if (dataLE.length == 1) {
-            return EMPTY_BYTE_ARRAY;
-        }
-
-        // If the next byte has it sign bit set, then we are minimaly encoded.
-        if ((dataLE[dataLE.length - 2] & 0x80) != 0) {
-            return dataLE;
-        }
-
-        //we might modify the array so clone it
-        dataLE = dataLE.clone();
-
-        // We are not minimally encoded, we need to figure out how much to trim.
-        // we are using i - 1 indexes here as we want to ignore the last byte (first byte in BE)
-        for (int i = dataLE.length - 1; i > 0; i--) {
-            // We found a non zero byte, time to encode.
-            if (dataLE[i - 1] != 0) {
-                if ((dataLE[i - 1] & 0x80) != 0) {
-                    // We found a byte with it's sign bit set so we need one more
-                    // byte.
-                    dataLE[i++] = (byte) last;
-                } else {
-                    // the sign bit is clear, we can use it.
-                    // add the sign bit from the last byte
-                    dataLE[i - 1] |= last;
-                }
-
-                return Arrays.copyOf(dataLE, i);
-            }
-        }
-
-        // If we the whole thing is zeros, then we have a zero.
-        return EMPTY_BYTE_ARRAY;
-    }
-
     private static class Pair implements Comparable<Pair> {
         int item, count;
         public Pair(int item, int count) { this.count = count; this.item = item; }
         // note that in this implementation compareTo() is not consistent with equals()
-        @Override public int compareTo(Pair o) { return -Ints.compare(count, o.count); }
+        @Override public int compareTo(Pair o) { return -Integer.compare(count, o.count); }
     }
 
     public static int maxOfMostFreq(int... items) {
@@ -620,7 +531,7 @@ public class Utils {
             return 0;
         // This would be much easier in a functional language (or in Java 8).
         items = Ordering.natural().reverse().sortedCopy(items);
-        LinkedList<Pair> pairs = Lists.newLinkedList();
+        LinkedList<Pair> pairs = new LinkedList<>();
         pairs.add(new Pair(items.get(0), 0));
         for (int item : items) {
             Pair pair = pairs.getLast();
@@ -652,8 +563,8 @@ public class Utils {
     private static Runtime runtime = null;
     private static OS os = null;
     static {
-        String runtimeProp = System.getProperty("java.runtime.name").toLowerCase(Locale.US);
-        if (runtimeProp == null)
+        String runtimeProp = System.getProperty("java.runtime.name", "").toLowerCase(Locale.US);
+        if (runtimeProp.equals(""))
             runtime = null;
         else if (runtimeProp.contains("android"))
             runtime = Runtime.ANDROID;
@@ -664,8 +575,8 @@ public class Utils {
         else
             log.info("Unknown java.runtime.name '{}'", runtimeProp);
 
-        String osProp = System.getProperty("os.name").toLowerCase(Locale.US);
-        if (osProp == null)
+        String osProp = System.getProperty("os.name", "").toLowerCase(Locale.US);
+        if (osProp.equals(""))
             os = null;
         else if (osProp.contains("linux"))
             os = OS.LINUX;
@@ -706,13 +617,5 @@ public class Utils {
         for (byte[] push : stack)
             parts.add('[' + HEX.encode(push) + ']');
         return SPACE_JOINER.join(parts);
-    }
-
-    public static byte[] toByteArray(int... values) {
-        byte[] conv = new byte[values.length];
-        for (int i = 0; i < values.length; i++) {
-            conv[i] = (byte)(values[i] & 0xFF);
-        }
-        return conv;
     }
 }

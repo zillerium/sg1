@@ -16,7 +16,6 @@
 
 package org.bitcoinj.core;
 
-import com.google.common.base.Objects;
 import com.google.common.net.InetAddresses;
 
 import javax.annotation.Nullable;
@@ -26,6 +25,7 @@ import java.math.BigInteger;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * <p>A VersionMessage holds information exchanged during connection setup with another peer. Most of the fields are not
@@ -41,9 +41,9 @@ import java.util.Locale;
 public class VersionMessage extends Message {
 
     /** The version of this library release, as a string. */
-    public static final String BITCOINJ_VERSION = "0.10.0";
+    public static final String BITCOINJ_VERSION = "0.16-SNAPSHOT";
     /** The value that is prepended to the subVer field of this application. */
-    public static final String LIBRARY_SUBVER = "/bitcoinj-sv:" + BITCOINJ_VERSION + "/";
+    public static final String LIBRARY_SUBVER = "/bitcoinj:" + BITCOINJ_VERSION + "/";
 
     /** A service bit that denotes whether the peer has a full copy of the block chain or not. */
     public static final int NODE_NETWORK = 1 << 0;
@@ -55,6 +55,7 @@ public class VersionMessage extends Message {
     public static final int NODE_WITNESS = 1 << 3;
     /** A service bit that denotes whether the peer has at least the last two days worth of blockchain (BIP159). */
     public static final int NODE_NETWORK_LIMITED = 1 << 10;
+    /** A service bit used by Bitcoin-ABC to announce Bitcoin Cash nodes. */
     public static final int NODE_BITCOIN_CASH = 1 << 5;
 
     /**
@@ -198,7 +199,7 @@ public class VersionMessage extends Message {
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(bestHeight, clientVersion, localServices,
+        return Objects.hash(bestHeight, clientVersion, localServices,
             time, subVer, receivingAddr, fromAddr, relayTxesBeforeFilter);
     }
 

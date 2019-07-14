@@ -17,8 +17,6 @@
 package org.bitcoinj.core;
 
 import javax.annotation.Nullable;
-import java.io.IOException;
-import java.io.OutputStream;
 
 /**
  * <p>Represents a Message type that can be contained within another Message.  ChildMessages that have a cached
@@ -90,4 +88,5 @@ public abstract class ChildMessage extends Message {
         if (parent != null)
             parent.adjustLength(newArraySize, adjustment);
     }
+
 }

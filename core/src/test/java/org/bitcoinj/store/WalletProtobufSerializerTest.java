@@ -193,7 +193,7 @@ public class WalletProtobufSerializerTest {
         for (int i = 0 ; i < 20 ; i++) {
             myKey = new ECKey();
             myAddress = LegacyAddress.fromKey(UNITTEST, myKey);
-            myWallet = new Wallet(UNITTEST);
+            myWallet = Wallet.createDeterministic(UNITTEST, Script.ScriptType.P2PKH);
             myWallet.importKey(myKey);
             Wallet wallet1 = roundTrip(myWallet);
             ECKey foundKey = wallet1.findKeyFromPubKeyHash(myKey.getPubKeyHash(), null);
@@ -207,7 +207,7 @@ public class WalletProtobufSerializerTest {
         // Test the lastBlockSeenHash field works.
 
         // LastBlockSeenHash should be empty if never set.
-        Wallet wallet = new Wallet(UNITTEST);
+        Wallet wallet = Wallet.createDeterministic(UNITTEST, Script.ScriptType.P2PKH);
         Protos.Wallet walletProto = new WalletProtobufSerializer().walletToProto(wallet);
         ByteString lastSeenBlockHash = walletProto.getLastSeenBlockHash();
         assertTrue(lastSeenBlockHash.isEmpty());
@@ -233,7 +233,7 @@ public class WalletProtobufSerializerTest {
 
     @Test
     public void testSequenceNumber() throws Exception {
-        Wallet wallet = new Wallet(UNITTEST);
+        Wallet wallet = Wallet.createDeterministic(UNITTEST, Script.ScriptType.P2PKH);
         Transaction tx1 = createFakeTx(UNITTEST, Coin.COIN, wallet.currentReceiveAddress());
         tx1.getInput(0).setSequenceNumber(TransactionInput.NO_SEQUENCE);
         wallet.receivePending(tx1, null);
@@ -358,7 +358,7 @@ public class WalletProtobufSerializerTest {
     @Test
     public void testRoundTripMarriedWallet() throws Exception {
         // create 2-of-2 married wallet
-        myWallet = new Wallet(UNITTEST);
+        myWallet = Wallet.createDeterministic(UNITTEST, Script.ScriptType.P2PKH);
         final DeterministicKeyChain partnerChain = DeterministicKeyChain.builder().random(new SecureRandom()).build();
         DeterministicKey partnerKey = DeterministicKey.deserializeB58(null, partnerChain.getWatchingKey().serializePubB58(UNITTEST), UNITTEST);
         MarriedKeyChain chain = MarriedKeyChain.builder()
@@ -429,7 +429,7 @@ public class WalletProtobufSerializerTest {
         assertTrue(wallet.getExtensions().containsKey("com.whatever.required"));
 
         // Non-mandatory extensions are ignored if the wallet doesn't know how to read them.
-        Wallet wallet2 = new Wallet(UNITTEST);
+        Wallet wallet2 = Wallet.createDeterministic(UNITTEST, Script.ScriptType.P2PKH);
         wallet2.addExtension(new FooWalletExtension("com.whatever.optional", false));
         Protos.Wallet proto2 = new WalletProtobufSerializer().walletToProto(wallet2);
         Wallet wallet5 = new WalletProtobufSerializer().readWallet(UNITTEST, null, proto2);
@@ -470,5 +470,18 @@ public class WalletProtobufSerializerTest {
         Protos.Wallet.Builder proto = Protos.Wallet.newBuilder(new WalletProtobufSerializer().walletToProto(myWallet));
         proto.setVersion(2);
         new WalletProtobufSerializer().readWallet(UNITTEST, null, proto.build());
+    }
+
+    @Test
+    public void storeWitnessTransactions() throws Exception {
+        // 3 inputs, inputs 0 and 2 have witnesses but not input 1
+        Transaction tx = new Transaction(UNITTEST, Utils.HEX.decode(
+                "02000000000103fc8a5bea59392369e8a1b635395e507a5cbaeffd926e6967a00d17c669aef1d3010000001716001403c80a334ed6a92cf400d8c708522ea0d6fa5593ffffffffc0166d2218a2613b5384fc2c31238b1b6fa337080a1384220734e1bfd3629d3f0100000000ffffffffc0166d2218a2613b5384fc2c31238b1b6fa337080a1384220734e1bfd3629d3f0200000000ffffffff01a086010000000000220020eb72e573a9513d982a01f0e6a6b53e92764db81a0c26d2be94c5fc5b69a0db7d02473044022048e895b7af715303ce273a2be03d6110ed69b5700679f4f036000f8ba6eddd2802205f780423fcce9b3632ed41681b0a86f5d123766b71f303558c39c1be5fe43e2601210259eb16169df80dbe5856d082a226d84a97d191c895f8046c3544df525028a874000220c0166d2218a2613b5384fc2c31238b1b6fa337080a1384220734e1bfd3629d3f20c0166d2218a2613b5384fc2c31238b1b6fa337080a1384220734e1bfd3629d3f00000000"));
+        assertTrue(tx.hasWitnesses());
+        assertEquals(tx.getTxId().toString(), "1c687396f4710f26206dbdd8bf07a28c76398be6750226ddfaf05a1a80d30034");
+        myWallet.addWalletTransaction(new WalletTransaction(Pool.UNSPENT, tx));
+        Wallet wallet1 = roundTrip(myWallet);
+        Transaction tx2 = wallet1.getTransaction(tx.getTxId());
+        assertEquals(tx.getInput(0).getWitness(), tx2.getInput(0).getWitness());
     }
 }

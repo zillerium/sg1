@@ -243,7 +243,7 @@ public class PeerGroupTest extends TestWithPeerGroup {
         // Create a peer.
         InboundMessageQueuer p1 = connectPeer(1);
         
-        Wallet wallet2 = new Wallet(UNITTEST);
+        Wallet wallet2 = Wallet.createDeterministic(UNITTEST, Script.ScriptType.P2PKH);
         ECKey key2 = wallet2.freshReceiveKey();
         Address address2 = LegacyAddress.fromKey(UNITTEST, key2);
         
@@ -419,7 +419,7 @@ public class PeerGroupTest extends TestWithPeerGroup {
         final long now = Utils.currentTimeSeconds();
         peerGroup.start();
         assertTrue(peerGroup.getFastCatchupTimeSecs() > now - WEEK - 10000);
-        Wallet w2 = new Wallet(UNITTEST);
+        Wallet w2 = Wallet.createDeterministic(UNITTEST, Script.ScriptType.P2PKH);
         ECKey key1 = new ECKey();
         key1.setCreationTimeSeconds(now - 86400);  // One day ago.
         w2.importKey(key1);
@@ -441,7 +441,7 @@ public class PeerGroupTest extends TestWithPeerGroup {
         peerGroup.setPingIntervalMsec(0);
         VersionMessage versionMessage = new VersionMessage(UNITTEST, 2);
         versionMessage.clientVersion = NetworkParameters.ProtocolVersion.BLOOM_FILTER.getBitcoinProtocolVersion();
-        versionMessage.localServices = VersionMessage.NODE_NETWORK | VersionMessage.NODE_BITCOIN_CASH;
+        versionMessage.localServices = VersionMessage.NODE_NETWORK;
         connectPeer(1, versionMessage);
         peerGroup.waitForPeers(1).get();
         assertFalse(peerGroup.getConnectedPeers().get(0).getLastPingTime() < Long.MAX_VALUE);
@@ -453,7 +453,7 @@ public class PeerGroupTest extends TestWithPeerGroup {
         peerGroup.setPingIntervalMsec(100);
         VersionMessage versionMessage = new VersionMessage(UNITTEST, 2);
         versionMessage.clientVersion = NetworkParameters.ProtocolVersion.BLOOM_FILTER.getBitcoinProtocolVersion();
-        versionMessage.localServices = VersionMessage.NODE_NETWORK | VersionMessage.NODE_BITCOIN_CASH;
+        versionMessage.localServices = VersionMessage.NODE_NETWORK;
         InboundMessageQueuer p1 = connectPeer(1, versionMessage);
         Ping ping = (Ping) waitForOutbound(p1);
         inbound(p1, new Pong(ping.getNonce()));
@@ -470,10 +470,10 @@ public class PeerGroupTest extends TestWithPeerGroup {
         peerGroup.start();
         VersionMessage versionMessage2 = new VersionMessage(UNITTEST, 2);
         versionMessage2.clientVersion = NetworkParameters.ProtocolVersion.BLOOM_FILTER.getBitcoinProtocolVersion();
-        versionMessage2.localServices = VersionMessage.NODE_NETWORK | VersionMessage.NODE_BITCOIN_CASH;
+        versionMessage2.localServices = VersionMessage.NODE_NETWORK;
         VersionMessage versionMessage3 = new VersionMessage(UNITTEST, 3);
         versionMessage3.clientVersion = NetworkParameters.ProtocolVersion.BLOOM_FILTER.getBitcoinProtocolVersion();
-        versionMessage3.localServices = VersionMessage.NODE_NETWORK | VersionMessage.NODE_BITCOIN_CASH;
+        versionMessage3.localServices = VersionMessage.NODE_NETWORK;
         assertNull(peerGroup.getDownloadPeer());
         Peer a = connectPeer(1, versionMessage2).peer;
         assertEquals(2, peerGroup.getMostCommonChainHeight());
@@ -694,10 +694,10 @@ public class PeerGroupTest extends TestWithPeerGroup {
 
         VersionMessage ver1 = new VersionMessage(UNITTEST, 10);
         ver1.clientVersion = bip37ver;
-        ver1.localServices = VersionMessage.NODE_NETWORK | VersionMessage.NODE_BITCOIN_CASH;
+        ver1.localServices = VersionMessage.NODE_NETWORK;
         VersionMessage ver2 = new VersionMessage(UNITTEST, 10);
         ver2.clientVersion = bip111ver;
-        ver2.localServices = VersionMessage.NODE_NETWORK | VersionMessage.NODE_BLOOM | VersionMessage.NODE_BITCOIN_CASH;
+        ver2.localServices = VersionMessage.NODE_NETWORK | VersionMessage.NODE_BLOOM;
         peerGroup.start();
         assertFalse(future.isDone());
         connectPeer(1, ver1);
@@ -716,10 +716,10 @@ public class PeerGroupTest extends TestWithPeerGroup {
 
         VersionMessage ver1 = new VersionMessage(UNITTEST, 10);
         ver1.clientVersion = 70000;
-        ver1.localServices = VersionMessage.NODE_NETWORK | VersionMessage.NODE_BITCOIN_CASH;
+        ver1.localServices = VersionMessage.NODE_NETWORK;
         VersionMessage ver2 = new VersionMessage(UNITTEST, 10);
         ver2.clientVersion = 70000;
-        ver2.localServices = VersionMessage.NODE_NETWORK | 2 | VersionMessage.NODE_BITCOIN_CASH;
+        ver2.localServices = VersionMessage.NODE_NETWORK | 2;
         peerGroup.start();
         assertFalse(future.isDone());
         connectPeer(1, ver1);
@@ -795,7 +795,7 @@ public class PeerGroupTest extends TestWithPeerGroup {
         assertNextMessageIs(p1, GetBlocksMessage.class);
 
         // Make some transactions and blocks that send money to the wallet thus using up all the keys.
-        List<Block> blocks = Lists.newArrayList();
+        List<Block> blocks = new ArrayList<>();
         Coin expectedBalance = Coin.ZERO;
         Block prev = blockStore.getChainHead().getHeader();
         for (ECKey key1 : keys) {

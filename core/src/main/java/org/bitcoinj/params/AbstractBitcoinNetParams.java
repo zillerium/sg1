@@ -22,13 +22,13 @@ import static com.google.common.base.Preconditions.checkState;
 import java.math.BigInteger;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.base.Preconditions;
 import org.bitcoinj.core.Block;
 import org.bitcoinj.core.Coin;
 import org.bitcoinj.core.NetworkParameters;
 import org.bitcoinj.core.Sha256Hash;
 import org.bitcoinj.core.StoredBlock;
 import org.bitcoinj.core.Transaction;
+import org.bitcoinj.core.TransactionOutput;
 import org.bitcoinj.core.Utils;
 import org.bitcoinj.utils.MonetaryFormat;
 import org.bitcoinj.core.VerificationException;
@@ -51,29 +51,12 @@ public abstract class AbstractBitcoinNetParams extends NetworkParameters {
      */
     public static final String BITCOIN_SCHEME = "bitcoin";
     public static final int REWARD_HALVING_INTERVAL = 210000;
-    /**
-     * The number that is one greater than the largest representable SHA-256
-     * hash.
-     */
-    private static BigInteger LARGEST_HASH = BigInteger.ONE.shiftLeft(256);
-
 
     private static final Logger log = LoggerFactory.getLogger(AbstractBitcoinNetParams.class);
 
     public AbstractBitcoinNetParams() {
         super();
     }
-
-    /**
-     * Checks if we are at a difficulty transition point.
-     * @param storedPrev The previous stored block
-     * @param parameters The network parameters
-     * @return If this is a difficulty transition point
-     */
-    public static boolean isDifficultyTransitionPoint(StoredBlock storedPrev, NetworkParameters parameters) {
-        return ((storedPrev.getHeight() + 1) % parameters.getInterval()) == 0;
-    }
-
 
     /**
      * Checks if we are at a reward halving point.
@@ -166,7 +149,9 @@ public abstract class AbstractBitcoinNetParams extends NetworkParameters {
         return MAX_MONEY;
     }
 
+    /** @deprecated use {@link TransactionOutput#getMinNonDustValue()} */
     @Override
+    @Deprecated
     public Coin getMinNonDustOutput() {
         return Transaction.MIN_NONDUST_OUTPUT;
     }
@@ -195,42 +180,4 @@ public abstract class AbstractBitcoinNetParams extends NetworkParameters {
     public boolean hasMaxMoney() {
         return true;
     }
-
-    /**
-     * Compute the a target based on the work done between 2 blocks and the time
-     * required to produce that work.
-     */
-    public static BigInteger ComputeTarget(StoredBlock pindexFirst,
-                                           StoredBlock pindexLast) {
-
-        Preconditions.checkState(pindexLast.getHeight() > pindexFirst.getHeight());
-
-        /*
-         * From the total work done and the time it took to produce that much work,
-         * we can deduce how much work we expect to be produced in the targeted time
-         * between blocks.
-         */
-        BigInteger work = pindexLast.getChainWork().subtract(pindexFirst.getChainWork());
-        work = work.multiply(BigInteger.valueOf(TARGET_SPACING));
-
-        // In order to avoid difficulty cliffs, we bound the amplitude of the
-        // adjustement we are going to do.
-        //assert(pindexLast->nTime > pindexFirst->nTime);
-        long nActualTimespan = pindexLast.getHeader().getTimeSeconds() - pindexFirst.getHeader().getTimeSeconds();
-        if (nActualTimespan > 288 * TARGET_SPACING) {
-            nActualTimespan = 288 * TARGET_SPACING;
-        } else if (nActualTimespan < 72 * TARGET_SPACING) {
-            nActualTimespan = 72 * TARGET_SPACING;
-        }
-
-        work = work.divide(BigInteger.valueOf(nActualTimespan));
-
-        /*
-         * We need to compute T = (2^256 / W) - 1 but 2^256 doesn't fit in 256 bits.
-         * By expressing 1 as W / W, we get (2^256 - W) / W, and we can compute
-         * 2^256 - W as the complement of W.
-         */
-        return LARGEST_HASH.divide(work).subtract(BigInteger.ONE);//target.add(BigInteger.ONE))
-    }
-
 }

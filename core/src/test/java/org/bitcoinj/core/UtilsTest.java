@@ -23,7 +23,6 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 
-import com.google.common.io.BaseEncoding;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
@@ -87,7 +86,7 @@ public class UtilsTest {
         BigInteger b = BigInteger.valueOf(0);
         byte[] expected = new byte[]{0b0000_0000};
         byte[] actual = Utils.bigIntegerToBytes(b, 1);
-        assertTrue(Arrays.equals(expected, actual));
+        assertArrayEquals(expected, actual);
     }
 
     @Test
@@ -95,7 +94,7 @@ public class UtilsTest {
         BigInteger b = BigInteger.valueOf(0b0000_1111);
         byte[] expected = new byte[]{0b0000_1111};
         byte[] actual = Utils.bigIntegerToBytes(b, 1);
-        assertTrue(Arrays.equals(expected, actual));
+        assertArrayEquals(expected, actual);
     }
 
     @Test
@@ -103,7 +102,7 @@ public class UtilsTest {
         BigInteger b = BigInteger.valueOf(0b0000_1111);
         byte[] expected = new byte[]{0, 0b0000_1111};
         byte[] actual = Utils.bigIntegerToBytes(b, 2);
-        assertTrue(Arrays.equals(expected, actual));
+        assertArrayEquals(expected, actual);
     }
 
     @Test
@@ -111,7 +110,7 @@ public class UtilsTest {
         BigInteger b = BigInteger.valueOf(0b1000_0000);     // 128 (2-compl does not fit in one byte)
         byte[] expected = new byte[]{-128};                 // -128 == 1000_0000 (compl-2)
         byte[] actual = Utils.bigIntegerToBytes(b, 1);
-        assertTrue(Arrays.equals(expected, actual));
+        assertArrayEquals(expected, actual);
     }
 
     @Test
@@ -119,42 +118,5 @@ public class UtilsTest {
         // This test assumes it is run within a Java runtime for desktop computers.
         assertTrue(Utils.isOpenJDKRuntime() || Utils.isOracleJavaRuntime());
         assertFalse(Utils.isAndroidRuntime());
-    }
-
-    @Test
-    public void testReadUint16BE() {
-        assertEquals(Utils.readUint16BE(BaseEncoding.base16().decode("0000"), 0), 0L);
-        assertEquals(Utils.readUint16BE(BaseEncoding.base16().decode("00FF"), 0), (long) Math.pow(2, 8) - 1);
-        assertEquals(Utils.readUint16BE(BaseEncoding.base16().decode("FFFF"), 0), (long) Math.pow(2, 16) - 1);
-    }
-
-    @Test
-    public void testReadUint32BE() {
-        assertEquals(Utils.readUint32BE(BaseEncoding.base16().decode("00000000"), 0), 0L);
-        assertEquals(Utils.readUint32BE(BaseEncoding.base16().decode("000000FF"), 0), (long) Math.pow(2, 8) - 1);
-        assertEquals(Utils.readUint32BE(BaseEncoding.base16().decode("0000FFFF"), 0), (long) Math.pow(2, 16) - 1);
-        assertEquals(Utils.readUint32BE(BaseEncoding.base16().decode("00FFFFFF"), 0), (long) Math.pow(2, 24) - 1);
-        assertEquals(Utils.readUint32BE(BaseEncoding.base16().decode("FFFFFFFF"), 0), (long) Math.pow(2, 32) - 1);
-    }
-    @Test
-    public void testReadUint32() {
-        assertEquals(Utils.readUint32(BaseEncoding.base16().decode("00000000"),0), 0L);
-        assertEquals(Utils.readUint32(BaseEncoding.base16().decode("FF000000"),0), (long)Math.pow(2,8)-1);
-        assertEquals(Utils.readUint32(BaseEncoding.base16().decode("FFFF0000"),0), (long)Math.pow(2,16)-1);
-        assertEquals(Utils.readUint32(BaseEncoding.base16().decode("FFFFFF00"),0), (long)Math.pow(2,24)-1);
-        assertEquals(Utils.readUint32(BaseEncoding.base16().decode("FFFFFFFF"),0), (long)Math.pow(2,32)-1);
-    }
-
-    @Test
-    public void testReadInt64() {
-        assertEquals(Utils.readInt64(BaseEncoding.base16().decode("0000000000000000"),0), 0L);
-        assertEquals(Utils.readInt64(BaseEncoding.base16().decode("FF00000000000000"),0), (long)Math.pow(2,8)-1);
-        assertEquals(Utils.readInt64(BaseEncoding.base16().decode("FFFF000000000000"),0), (long)Math.pow(2,16)-1);
-        assertEquals(Utils.readInt64(BaseEncoding.base16().decode("FFFFFF0000000000"),0), (long)Math.pow(2,24)-1);
-        assertEquals(Utils.readInt64(BaseEncoding.base16().decode("FFFFFFFF00000000"),0), (long)Math.pow(2,32)-1);
-        assertEquals(Utils.readInt64(BaseEncoding.base16().decode("FFFFFFFFFF000000"),0), (long)Math.pow(2,40)-1);
-        assertEquals(Utils.readInt64(BaseEncoding.base16().decode("FFFFFFFFFFFF0000"),0), (long)Math.pow(2,48)-1);
-        assertEquals(Utils.readInt64(BaseEncoding.base16().decode("FFFFFFFFFFFFFF00"),0), (long)Math.pow(2,56)-1);
-        assertEquals(Utils.readInt64(BaseEncoding.base16().decode("FFFFFFFFFFFFFFFF"),0), -1L);
     }
 }

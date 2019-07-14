@@ -15,7 +15,7 @@ import static com.google.common.base.Preconditions.checkState;
 public class ScalingTestNetParams extends AbstractBitcoinNetParams {
     public ScalingTestNetParams() {
         super();
-        id = ID_SCALINGTESTNET;
+        id = "org.bitcoinj.stn";
         // Genesis hash is 000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943
         packetMagic = 0xfbcec4f9L;
         interval = INTERVAL;
@@ -46,8 +46,6 @@ public class ScalingTestNetParams extends AbstractBitcoinNetParams {
         majorityRejectBlockOutdated = TestNet2Params.TESTNET_MAJORITY_REJECT_BLOCK_OUTDATED;
         majorityWindow = TestNet2Params.TESTNET_MAJORITY_WINDOW;
 
-        // Aug, 1 hard fork
-        uahfHeight = 15;
         // Nov, 13 hard fork
         daaUpdateHeight = 2200;
     }

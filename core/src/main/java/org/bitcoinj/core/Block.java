@@ -66,7 +66,7 @@ public class Block extends Message {
      * upgrade everyone to change this, so Bitcoin can continue to grow. For now it exists as an anti-DoS measure to
      * avoid somebody creating a titanically huge but valid block and forcing everyone to download/store it forever.
      */
-    public static final int MAX_BLOCK_SIZE = 2048 * 1000 * 1000;
+    public static final int MAX_BLOCK_SIZE = 1 * 1000 * 1000;
     /**
      * A "sigop" is a signature verification operation. Because they're expensive we also impose a separate limit on
      * the number in a block to prevent somebody mining a huge block that has way more sigops than normal, so is very
@@ -98,8 +98,8 @@ public class Block extends Message {
     private long difficultyTarget; // "nBits"
     private long nonce;
 
-    // TODO: Get rid of all the direct accesses to this field. It's a long-since unnecessary holdover from the Dalvik days.
-    /** If null, it means this object holds only the headers. */
+    // If null, it means this object holds only the headers.
+    @VisibleForTesting
     @Nullable List<Transaction> transactions;
 
     /** Stores the hash of the block. If null, getHash() will recalculate it. */
@@ -304,11 +304,9 @@ public class Block extends Message {
             return;
         }
 
-        if (transactions != null) {
-            stream.write(new VarInt(transactions.size()).encode());
-            for (Transaction tx : transactions) {
-                tx.bitcoinSerialize(stream);
-            }
+        stream.write(new VarInt(transactions.size()).encode());
+        for (Transaction tx : transactions) {
+            tx.bitcoinSerialize(stream);
         }
     }
 
@@ -587,6 +585,26 @@ public class Block extends Message {
     void checkWitnessRoot() throws VerificationException {
         Transaction coinbase = transactions.get(0);
         checkState(coinbase.isCoinBase());
+        Sha256Hash witnessCommitment = coinbase.findWitnessCommitment();
+        if (witnessCommitment != null) {
+            byte[] witnessReserved = null;
+            TransactionWitness witness = coinbase.getInput(0).getWitness();
+            if (witness.getPushCount() != 1)
+                throw new VerificationException("Coinbase witness reserved invalid: push count");
+            witnessReserved = witness.getPush(0);
+            if (witnessReserved.length != 32)
+                throw new VerificationException("Coinbase witness reserved invalid: length");
+
+            Sha256Hash witnessRootHash = Sha256Hash.twiceOf(getWitnessRoot().getReversedBytes(), witnessReserved);
+            if (!witnessRootHash.equals(witnessCommitment))
+                throw new VerificationException("Witness merkle root invalid. Expected " + witnessCommitment.toString()
+                        + " but got " + witnessRootHash.toString());
+        } else {
+            for (Transaction tx : transactions) {
+                if (tx.hasWitnesses())
+                    throw new VerificationException("Transaction witness found but no witness commitment present");
+            }
+        }
     }
 
     private Sha256Hash calculateMerkleRoot() {

@@ -20,16 +20,15 @@ package org.bitcoinj.wallet;
 import org.bitcoinj.crypto.*;
 import org.bitcoinj.script.Script;
 
-import com.google.common.collect.ImmutableList;
+import java.util.List;
 
 /**
  * Default factory for creating keychains while de-serializing.
  */
 public class DefaultKeyChainFactory implements KeyChainFactory {
     @Override
-    public DeterministicKeyChain makeKeyChain(Protos.Key key, Protos.Key firstSubKey, DeterministicSeed seed,
-            KeyCrypter crypter, boolean isMarried, Script.ScriptType outputScriptType,
-            ImmutableList<ChildNumber> accountPath) {
+    public DeterministicKeyChain makeKeyChain(DeterministicSeed seed, KeyCrypter crypter, boolean isMarried,
+            Script.ScriptType outputScriptType, List<ChildNumber> accountPath) {
         DeterministicKeyChain chain;
         if (isMarried)
             chain = new MarriedKeyChain(seed, crypter, outputScriptType, accountPath);
@@ -39,9 +38,8 @@ public class DefaultKeyChainFactory implements KeyChainFactory {
     }
 
     @Override
-    public DeterministicKeyChain makeWatchingKeyChain(Protos.Key key, Protos.Key firstSubKey,
-            DeterministicKey accountKey, boolean isFollowingKey, boolean isMarried, Script.ScriptType outputScriptType)
-            throws UnreadableWalletException {
+    public DeterministicKeyChain makeWatchingKeyChain(DeterministicKey accountKey, boolean isFollowingKey,
+            boolean isMarried, Script.ScriptType outputScriptType) throws UnreadableWalletException {
         DeterministicKeyChain chain;
         if (isMarried)
             chain = new MarriedKeyChain(accountKey, outputScriptType);
@@ -53,9 +51,8 @@ public class DefaultKeyChainFactory implements KeyChainFactory {
     }
 
     @Override
-    public DeterministicKeyChain makeSpendingKeyChain(Protos.Key key, Protos.Key firstSubKey,
-            DeterministicKey accountKey, boolean isMarried, Script.ScriptType outputScriptType)
-            throws UnreadableWalletException {
+    public DeterministicKeyChain makeSpendingKeyChain(DeterministicKey accountKey, boolean isMarried,
+            Script.ScriptType outputScriptType) throws UnreadableWalletException {
         DeterministicKeyChain chain;
         if (isMarried)
             chain = new MarriedKeyChain(accountKey, outputScriptType);

@@ -32,7 +32,7 @@ public abstract class AbstractRuleCheckerFactory {
 
     protected boolean allowEasyBlocks() {
         return NetworkParameters.ID_TESTNET.equals(networkParameters.getId())
-                || NetworkParameters.ID_SCALINGTESTNET.equals(networkParameters.getId());
+                || "org.bitcoinj.stn".equals(networkParameters.getId());
     }
 
 }
