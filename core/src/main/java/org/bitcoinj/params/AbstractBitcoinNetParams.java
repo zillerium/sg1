@@ -22,6 +22,7 @@ import static com.google.common.base.Preconditions.checkState;
 import java.math.BigInteger;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.base.Preconditions;
 import org.bitcoinj.core.Block;
 import org.bitcoinj.core.Coin;
 import org.bitcoinj.core.NetworkParameters;
@@ -56,6 +57,16 @@ public abstract class AbstractBitcoinNetParams extends NetworkParameters {
 
     public AbstractBitcoinNetParams() {
         super();
+    }
+
+    /**
+     * Checks if we are at a difficulty transition point.
+     * @param storedPrev The previous stored block
+     * @param parameters The network parameters
+     * @return If this is a difficulty transition point
+     */
+    public static boolean isDifficultyTransitionPoint(StoredBlock storedPrev, NetworkParameters parameters) {
+        return ((storedPrev.getHeight() + 1) % parameters.getInterval()) == 0;
     }
 
     /**
@@ -126,22 +137,7 @@ public abstract class AbstractBitcoinNetParams extends NetworkParameters {
         newTarget = newTarget.multiply(BigInteger.valueOf(timespan));
         newTarget = newTarget.divide(BigInteger.valueOf(targetTimespan));
 
-        if (newTarget.compareTo(this.getMaxTarget()) > 0) {
-            log.info("Difficulty hit proof of work limit: {}", newTarget.toString(16));
-            newTarget = this.getMaxTarget();
-        }
-
-        int accuracyBytes = (int) (nextBlock.getDifficultyTarget() >>> 24) - 3;
-        long receivedTargetCompact = nextBlock.getDifficultyTarget();
-
-        // The calculated difficulty is to a higher precision than received, so reduce here.
-        BigInteger mask = BigInteger.valueOf(0xFFFFFFL).shiftLeft(accuracyBytes * 8);
-        newTarget = newTarget.and(mask);
-        long newTargetCompact = Utils.encodeCompactBits(newTarget);
-
-        if (newTargetCompact != receivedTargetCompact)
-            throw new VerificationException("Network provided difficulty bits do not match what was calculated: " +
-                    Long.toHexString(newTargetCompact) + " vs " + Long.toHexString(receivedTargetCompact));
+        verifyDifficulty(newTarget, nextBlock);
     }
 
     @Override
@@ -179,5 +175,42 @@ public abstract class AbstractBitcoinNetParams extends NetworkParameters {
     @Override
     public boolean hasMaxMoney() {
         return true;
+    }
+
+    /**
+     * Compute the a target based on the work done between 2 blocks and the time
+     * required to produce that work.
+     */
+    public static BigInteger ComputeTarget(StoredBlock pindexFirst,
+                                           StoredBlock pindexLast) {
+
+        Preconditions.checkState(pindexLast.getHeight() > pindexFirst.getHeight());
+
+        /*
+         * From the total work done and the time it took to produce that much work,
+         * we can deduce how much work we expect to be produced in the targeted time
+         * between blocks.
+         */
+        BigInteger work = pindexLast.getChainWork().subtract(pindexFirst.getChainWork());
+        work = work.multiply(BigInteger.valueOf(TARGET_SPACING));
+
+        // In order to avoid difficulty cliffs, we bound the amplitude of the
+        // adjustement we are going to do.
+        //assert(pindexLast->nTime > pindexFirst->nTime);
+        long nActualTimespan = pindexLast.getHeader().getTimeSeconds() - pindexFirst.getHeader().getTimeSeconds();
+        if (nActualTimespan > 288 * TARGET_SPACING) {
+            nActualTimespan = 288 * TARGET_SPACING;
+        } else if (nActualTimespan < 72 * TARGET_SPACING) {
+            nActualTimespan = 72 * TARGET_SPACING;
+        }
+
+        work = work.divide(BigInteger.valueOf(nActualTimespan));
+
+        /*
+         * We need to compute T = (2^256 / W) - 1 but 2^256 doesn't fit in 256 bits.
+         * By expressing 1 as W / W, we get (2^256 - W) / W, and we can compute
+         * 2^256 - W as the complement of W.
+         */
+        return BigInteger.ONE.shiftLeft(256).divide(work).subtract(BigInteger.ONE);//target.add(BigInteger.ONE))
     }
 }

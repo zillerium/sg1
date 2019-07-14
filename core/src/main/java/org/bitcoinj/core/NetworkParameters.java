@@ -84,11 +84,16 @@ public abstract class NetworkParameters {
     protected int bip32HeaderP2PKHpriv;
     protected int bip32HeaderP2WPKHpub;
     protected int bip32HeaderP2WPKHpriv;
+    protected int[] acceptableAddressCodes;
 
     /** Used to check majorities for block version upgrade */
     protected int majorityEnforceBlockUpgrade;
     protected int majorityRejectBlockOutdated;
     protected int majorityWindow;
+
+    protected int daaUpdateHeight;
+
+
 
     /**
      * See getId(). This may be null for old deserialized wallets. In that case we derive it heuristically
@@ -360,6 +365,25 @@ public abstract class NetworkParameters {
     public int getBip32HeaderP2WPKHpriv() {
         return bip32HeaderP2WPKHpriv;
     }
+
+    public void verifyDifficulty(BigInteger newTarget, Block nextBlock) {
+        if (newTarget.compareTo(this.getMaxTarget()) > 0) {
+            newTarget = this.getMaxTarget();
+        }
+
+        int accuracyBytes = (int) (nextBlock.getDifficultyTarget() >>> 24) - 3;
+        long receivedTargetCompact = nextBlock.getDifficultyTarget();
+
+        // The calculated difficulty is to a higher precision than received, so reduce here.
+        BigInteger mask = BigInteger.valueOf(0xFFFFFFL).shiftLeft(accuracyBytes * 8);
+        newTarget = newTarget.and(mask);
+        long newTargetCompact = Utils.encodeCompactBits(newTarget);
+
+        if (newTargetCompact != receivedTargetCompact)
+            throw new VerificationException("Network provided difficulty bits do not match what was calculated: " +
+                    Long.toHexString(newTargetCompact) + " vs " + Long.toHexString(receivedTargetCompact));
+    }
+
     /**
      * Returns the number of coins that will be produced in total, on this
      * network. Where not applicable, a very large number of coins is returned
@@ -387,6 +411,10 @@ public abstract class NetworkParameters {
      * networks.
      */
     public abstract boolean hasMaxMoney();
+
+    public int getDAAUpdateHeight(){
+        return daaUpdateHeight;
+    }
 
     /**
      * Return the default serializer for this network. This is a shared serializer.

@@ -21,6 +21,8 @@ import com.google.common.base.*;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.*;
 import org.bitcoinj.core.listeners.*;
+import org.bitcoinj.pow.AbstractPowRulesChecker;
+import org.bitcoinj.pow.factory.RuleCheckerFactory;
 import org.bitcoinj.script.ScriptException;
 import org.bitcoinj.store.*;
 import org.bitcoinj.utils.*;
@@ -83,6 +85,7 @@ public abstract class AbstractBlockChain {
 
     /** Keeps a map of block hashes to StoredBlocks. */
     private final BlockStore blockStore;
+    private final RuleCheckerFactory ruleCheckerFactory;
 
     /**
      * Tracks the top of the best known chain.<p>
@@ -150,7 +153,7 @@ public abstract class AbstractBlockChain {
         chainHead = blockStore.getChainHead();
         log.info("chain head is at height {}:\n{}", chainHead.getHeight(), chainHead.getHeader());
         this.params = context.getParams();
-
+        this.ruleCheckerFactory = RuleCheckerFactory.create(this.params);
         this.newBestBlockListeners = new CopyOnWriteArrayList<>();
         this.reorganizeListeners = new CopyOnWriteArrayList<>();
         this.transactionReceivedListeners = new CopyOnWriteArrayList<>();
@@ -467,7 +470,8 @@ public abstract class AbstractBlockChain {
             } else {
                 checkState(lock.isHeldByCurrentThread());
                 // It connects to somewhere on the chain. Not necessarily the top of the best known chain.
-                params.checkDifficultyTransitions(storedPrev, block, blockStore);
+                AbstractPowRulesChecker rulesChecker = ruleCheckerFactory.getRuleChecker(storedPrev, block);
+                rulesChecker.checkRules(storedPrev, block, blockStore, this);
                 connectBlock(block, storedPrev, shouldVerifyTransactions(), filteredTxHashList, filteredTxn);
                 if (tryConnecting)
                     tryConnectingOrphans();
@@ -693,8 +697,8 @@ public abstract class AbstractBlockChain {
     /**
      * Gets the median timestamp of the last 11 blocks
      */
-    private static long getMedianTimestampOfRecentBlocks(StoredBlock storedBlock,
-                                                         BlockStore store) throws BlockStoreException {
+    public static long getMedianTimestampOfRecentBlocks(StoredBlock storedBlock,
+                                                        BlockStore store) throws BlockStoreException {
         long[] timestamps = new long[11];
         int unused = 9;
         timestamps[10] = storedBlock.getHeader().getTimeSeconds();
