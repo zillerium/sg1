@@ -118,6 +118,8 @@ public class Transaction extends ChildMessage {
     @Deprecated
     public static final Coin MIN_NONDUST_OUTPUT = Coin.valueOf(546); // satoshis
 
+    public static final int CURRENT_VERSION = 2;
+
     // These are bitcoin serialized.
     private long version;
     private ArrayList<TransactionInput> inputs;
@@ -541,6 +543,7 @@ public class Transaction extends ChildMessage {
         ALL(1),
         NONE(2),
         SINGLE(3),
+        FORKID(0x40),
         ANYONECANPAY(0x80), // Caution: Using this type in isolation is non-standard. Treated similar to ANYONECANPAY_ALL.
         ANYONECANPAY_ALL(0x81),
         ANYONECANPAY_NONE(0x82),
@@ -954,21 +957,23 @@ public class Transaction extends ChildMessage {
      * @throws ScriptException if the scriptPubKey is not a pay to address or pay to pubkey script.
      */
     public TransactionInput addSignedInput(TransactionOutPoint prevOut, Script scriptPubKey, ECKey sigKey,
-                                           SigHash sigHash, boolean anyoneCanPay) throws ScriptException {
+                                           SigHash sigHash, boolean anyoneCanPay, boolean forkId) throws ScriptException {
         // Verify the API user didn't try to do operations out of order.
         checkState(!outputs.isEmpty(), "Attempting to sign tx without outputs.");
         TransactionInput input = new TransactionInput(params, this, new byte[] {}, prevOut);
         addInput(input);
         int inputIndex = inputs.size() - 1;
+        Sha256Hash hash = forkId ?
+                hashForWitnessSignature(inputIndex, scriptPubKey, prevOut.getConnectedOutput().getValue(), sigHash, anyoneCanPay) :
+                hashForSignature(inputIndex, scriptPubKey, sigHash, anyoneCanPay);
+
+        ECKey.ECDSASignature ecSig = sigKey.sign(hash);
+        TransactionSignature txSig = new TransactionSignature(ecSig, sigHash, anyoneCanPay, forkId);
         if (ScriptPattern.isP2PK(scriptPubKey)) {
-            TransactionSignature signature = calculateSignature(inputIndex, sigKey, scriptPubKey, sigHash,
-                    anyoneCanPay);
-            input.setScriptSig(ScriptBuilder.createInputScript(signature));
+            input.setScriptSig(ScriptBuilder.createInputScript(txSig));
             input.setWitness(null);
         } else if (ScriptPattern.isP2PKH(scriptPubKey)) {
-            TransactionSignature signature = calculateSignature(inputIndex, sigKey, scriptPubKey, sigHash,
-                    anyoneCanPay);
-            input.setScriptSig(ScriptBuilder.createInputScript(signature, sigKey));
+            input.setScriptSig(ScriptBuilder.createInputScript(txSig, sigKey));
             input.setWitness(null);
         } else if (ScriptPattern.isP2WPKH(scriptPubKey)) {
             Script scriptCode = new ScriptBuilder()
@@ -984,11 +989,11 @@ public class Transaction extends ChildMessage {
     }
 
     /**
-     * Same as {@link #addSignedInput(TransactionOutPoint, Script, ECKey, Transaction.SigHash, boolean)}
+     * Same as {@link #addSignedInput(TransactionOutPoint, Script, ECKey)}
      * but defaults to {@link SigHash#ALL} and "false" for the anyoneCanPay flag. This is normally what you want.
      */
     public TransactionInput addSignedInput(TransactionOutPoint prevOut, Script scriptPubKey, ECKey sigKey) throws ScriptException {
-        return addSignedInput(prevOut, scriptPubKey, sigKey, SigHash.ALL, false);
+        return addSignedInput(prevOut, scriptPubKey, sigKey, SigHash.ALL, false, true);
     }
 
     /**
@@ -1004,7 +1009,7 @@ public class Transaction extends ChildMessage {
      * signing key.
      */
     public TransactionInput addSignedInput(TransactionOutput output, ECKey signingKey, SigHash sigHash, boolean anyoneCanPay) {
-        return addSignedInput(output.getOutPointFor(), output.getScriptPubKey(), signingKey, sigHash, anyoneCanPay);
+        return addSignedInput(output.getOutPointFor(), output.getScriptPubKey(), signingKey, sigHash, anyoneCanPay, true);
     }
 
     /**
@@ -1037,6 +1042,11 @@ public class Transaction extends ChildMessage {
      */
     public TransactionOutput addOutput(Coin value, Address address) {
         return addOutput(new TransactionOutput(params, this, value, address));
+    }
+
+    public TransactionOutput addData(byte[] data) {
+        Script script = ScriptBuilder.createOpReturnScript(data);
+        return addOutput(new TransactionOutput(params, this, Coin.ZERO, script.getProgram()));
     }
 
     /**

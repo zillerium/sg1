@@ -286,7 +286,7 @@ public class Wallet extends BaseTaggableObject
      * automatically. This is meant for when you just want to import a few keys and operate on them.
      * @param params network parameters
      */
-    public static Wallet createBasic(NetworkParameters params) {
+    public static Wallet fromPubKeyHash(NetworkParameters params) {
         return new Wallet(params, KeyChainGroup.createBasic(params));
     }
 
@@ -4043,6 +4043,7 @@ public class Wallet extends BaseTaggableObject
      */
     public SendResult sendCoins(TransactionBroadcaster broadcaster, SendRequest request)
             throws InsufficientMoneyException, BadWalletEncryptionKeyException {
+        request.setUseForkId(true);
         // Should not be locked here, as we're going to call into the broadcaster and that might want to hold its
         // own lock. sendCoinsOffline handles everything that needs to be locked.
         checkState(!lock.isHeldByCurrentThread());
@@ -4106,6 +4107,19 @@ public class Wallet extends BaseTaggableObject
         return tx;
     }
 
+    public SendResult sendData(TransactionBroadcaster broadcaster, byte[] data, boolean useforkId) throws InsufficientMoneyException {
+        Transaction tx = new Transaction(params);
+        tx.addData(data);
+        SendRequest request = SendRequest.forTx(tx);
+        return sendCoins(broadcaster, request);
+
+    }
+
+    public SendResult sendCoins(TransactionBroadcaster broadcaster, Address to, Coin value, boolean useforkId) throws InsufficientMoneyException {
+        SendRequest request = SendRequest.to(to, value);
+        return sendCoins(broadcaster, request);
+    }
+
     /**
      * Class of exceptions thrown in {@link Wallet#completeTx(SendRequest)}.
      */
@@ -4160,9 +4174,14 @@ public class Wallet extends BaseTaggableObject
      * @throws BadWalletEncryptionKeyException if the supplied {@link SendRequest#aesKey} is wrong.
      */
     public void completeTx(SendRequest req) throws InsufficientMoneyException, BadWalletEncryptionKeyException {
+        req.setUseForkId(true);
         lock.lock();
         try {
             checkArgument(!req.completed, "Given SendRequest has already been completed.");
+            // set version
+            if(req.getUseForkId())
+                req.tx.setVersion(Transaction.CURRENT_VERSION);
+
             // Calculate the amount of value we need to import.
             Coin value = Coin.ZERO;
             for (TransactionOutput output : req.tx.getOutputs()) {
@@ -4280,6 +4299,7 @@ public class Wallet extends BaseTaggableObject
      * @throws BadWalletEncryptionKeyException if the supplied {@link SendRequest#aesKey} is wrong.
      */
     public void signTransaction(SendRequest req) throws BadWalletEncryptionKeyException {
+        req.setUseForkId(true);
         lock.lock();
         try {
             Transaction tx = req.tx;
@@ -4319,7 +4339,7 @@ public class Wallet extends BaseTaggableObject
                 txIn.setWitness(scriptPubKey.createEmptyWitness(redeemData.keys.get(0)));
             }
 
-            TransactionSigner.ProposedTransaction proposal = new TransactionSigner.ProposedTransaction(tx);
+            TransactionSigner.ProposedTransaction proposal = new TransactionSigner.ProposedTransaction(tx, req.getUseForkId());
             for (TransactionSigner signer : signers) {
                 if (!signer.signInputs(proposal, maybeDecryptingKeyBag))
                     log.info("{} returned false for the tx", signer.getClass().getName());

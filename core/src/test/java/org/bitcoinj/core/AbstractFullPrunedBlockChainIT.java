@@ -260,7 +260,7 @@ public abstract class AbstractFullPrunedBlockChainIT {
         // Create bitcoin spend of 1 BTC.
         ECKey toKey = new ECKey();
         Coin amount = Coin.valueOf(100000000);
-        Address address = new LegacyAddress(PARAMS, toKey.getPubKeyHash());
+        Address address = LegacyAddress.fromPubKeyHash(PARAMS, toKey.getPubKeyHash());
         Coin totalAmount = Coin.ZERO;
 
         Transaction t = new Transaction(PARAMS);
@@ -309,7 +309,7 @@ public abstract class AbstractFullPrunedBlockChainIT {
         rollingBlock = rollingBlock.createNextBlock(null);
 
         // Create 1 BTC spend to a key in this wallet (to ourselves).
-        Wallet wallet = new Wallet(PARAMS);
+        Wallet wallet = Wallet.fromPubKeyHash(PARAMS);
         assertEquals("Available balance is incorrect", Coin.ZERO, wallet.getBalance(Wallet.BalanceType.AVAILABLE));
         assertEquals("Estimated balance is incorrect", Coin.ZERO, wallet.getBalance(Wallet.BalanceType.ESTIMATED));
 
@@ -327,7 +327,7 @@ public abstract class AbstractFullPrunedBlockChainIT {
         // Create another spend of 1/2 the value of BTC we have available using the wallet (store coin selector).
         ECKey toKey2 = new ECKey();
         Coin amount2 = amount.divide(2);
-        Address address2 = new LegacyAddress(PARAMS, toKey2.getPubKeyHash());
+        Address address2 = LegacyAddress.fromPubKeyHash(PARAMS, toKey2.getPubKeyHash());
         SendRequest req = SendRequest.to(address2, amount2);
         wallet.completeTx(req);
         wallet.commitTx(req.tx);

@@ -92,4 +92,14 @@ public class VerificationException extends RuntimeException {
             super("Signature encoding is not canonical");
         }
     }
+
+    public static class SignatureFormatError extends VerificationException {
+        public SignatureFormatError(String msg) {
+            super(msg);
+        }
+
+        public SignatureFormatError(Exception e) {
+            super(e);
+        }
+    }
 }

@@ -68,7 +68,7 @@ public class Script {
         }
     }
 
-    /** Flags to pass to {@link Script#correctlySpends(Transaction, long, Script, Set)}.
+    /** Flags to pass to {@link Script#correctlySpends(Transaction, long, Script, Coin, Set)}.
      * Note currently only P2SH, DERSIG and NULLDUMMY are actually supported.
      */
     public enum VerifyFlag {
@@ -82,7 +82,10 @@ public class Script {
         DISCOURAGE_UPGRADABLE_NOPS, // Discourage use of NOPs reserved for upgrades (NOP1-10)
         CLEANSTACK, // Require that only a single stack element remains after evaluation.
         CHECKLOCKTIMEVERIFY, // Enable CHECKLOCKTIMEVERIFY operation
-        CHECKSEQUENCEVERIFY // Enable CHECKSEQUENCEVERIFY operation
+        CHECKSEQUENCEVERIFY, // Enable CHECKSEQUENCEVERIFY operation
+        SIGHASH_FORKID,
+        PUBKEYTYPE
+        ;
     }
     public static final EnumSet<VerifyFlag> ALL_VERIFY_FLAGS = EnumSet.allOf(VerifyFlag.class);
 
@@ -770,17 +773,17 @@ public class Script {
      * is useful if you need more precise control or access to the final state of the stack. This interface is very
      * likely to change in future.
      *
-     * @deprecated Use {@link #executeScript(Transaction, long, Script, LinkedList, Set)}
+     * @deprecated Use {@link #executeScript(Transaction, long, Coin, Script, LinkedList, boolean)}
      * instead.
      */
     @Deprecated
-    public static void executeScript(@Nullable Transaction txContainingThis, long index,
+    public static void executeScript(@Nullable Transaction txContainingThis, long index, Coin value,
                                      Script script, LinkedList<byte[]> stack, boolean enforceNullDummy) throws ScriptException {
         final EnumSet<VerifyFlag> flags = enforceNullDummy
             ? EnumSet.of(VerifyFlag.NULLDUMMY)
             : EnumSet.noneOf(VerifyFlag.class);
 
-        executeScript(txContainingThis, index, script, stack, flags);
+        executeScript(txContainingThis, index, script, stack, value, flags);
     }
 
     /**
@@ -791,7 +794,7 @@ public class Script {
      * likely to change in future.
      */
     public static void executeScript(@Nullable Transaction txContainingThis, long index,
-                                     Script script, LinkedList<byte[]> stack, Set<VerifyFlag> verifyFlags) throws ScriptException {
+                                     Script script, LinkedList<byte[]> stack, Coin value, Set<VerifyFlag> verifyFlags) throws ScriptException {
         int opCount = 0;
         int lastCodeSepLocation = 0;
         
@@ -1246,13 +1249,13 @@ public class Script {
                 case OP_CHECKSIGVERIFY:
                     if (txContainingThis == null)
                         throw new IllegalStateException("Script attempted signature check but no tx was provided");
-                    executeCheckSig(txContainingThis, (int) index, script, stack, lastCodeSepLocation, opcode, verifyFlags);
+                    executeCheckSig(txContainingThis, (int) index, script, stack, lastCodeSepLocation, opcode, value, verifyFlags);
                     break;
                 case OP_CHECKMULTISIG:
                 case OP_CHECKMULTISIGVERIFY:
                     if (txContainingThis == null)
                         throw new IllegalStateException("Script attempted signature check but no tx was provided");
-                    opCount = executeMultiSig(txContainingThis, (int) index, script, stack, opCount, lastCodeSepLocation, opcode, verifyFlags);
+                    opCount = executeMultiSig(txContainingThis, (int) index, script, stack, opCount, lastCodeSepLocation, opcode, value, verifyFlags);
                     break;
                 case OP_CHECKLOCKTIMEVERIFY:
                     if (!verifyFlags.contains(VerifyFlag.CHECKLOCKTIMEVERIFY)) {
@@ -1411,7 +1414,7 @@ public class Script {
     }
 
     private static void executeCheckSig(Transaction txContainingThis, int index, Script script, LinkedList<byte[]> stack,
-                                        int lastCodeSepLocation, int opcode, 
+                                        int lastCodeSepLocation, int opcode, Coin value,
                                         Set<VerifyFlag> verifyFlags) throws ScriptException {
         final boolean requireCanonical = verifyFlags.contains(VerifyFlag.STRICTENC)
             || verifyFlags.contains(VerifyFlag.DERSIG)
@@ -1435,12 +1438,26 @@ public class Script {
         // TODO: Use int for indexes everywhere, we can't have that many inputs/outputs
         boolean sigValid = false;
         try {
-            TransactionSignature sig = TransactionSignature.decodeFromBitcoin(sigBytes, requireCanonical,
-                verifyFlags.contains(VerifyFlag.LOW_S));
+            if (sigBytes.length > 0) {
+                // We check the signature Encoding.
+                // In case of failed verification, and Exception is thrown
+                checkSignatureEncoding(sigBytes, verifyFlags);
 
-            // TODO: Should check hash type is known
-            Sha256Hash hash = txContainingThis.hashForSignature(index, connectedScript, (byte) sig.sighashFlags);
-            sigValid = ECKey.verify(hash.getBytes(), sig, pubKey);
+                // We check the Public Key encoding and compression.
+                // In case of failed verification, and Exception is thrown
+                checkPubKeyEncoding(pubKey, verifyFlags);
+                
+                TransactionSignature sig = TransactionSignature.decodeFromBitcoin(sigBytes, requireCanonical,
+                        verifyFlags.contains(VerifyFlag.LOW_S));
+
+
+                // TODO: Should check hash type is known
+                Sha256Hash hash = sig.useForkId() ?
+                        txContainingThis.hashForSignature(index, connectedScript, (byte) sig.sighashFlags)
+                        :txContainingThis.hashForWitnessSignature(index, connectedScript, value, sig.sigHashMode(), sig.anyoneCanPay());
+                sigValid = ECKey.verify(hash.getBytes(), sig, pubKey);
+            }
+
         } catch (VerificationException.NoncanonicalSignature e) {
             throw new ScriptException(ScriptError.SCRIPT_ERR_SIG_DER, "Script contains non-canonical signature");
         } catch (SignatureDecodeException e) {
@@ -1462,8 +1479,118 @@ public class Script {
                 throw new ScriptException(ScriptError.SCRIPT_ERR_CHECKSIGVERIFY, "Script failed OP_CHECKSIGVERIFY");
     }
 
+    /**
+     * Checks the Public Key encoding
+     * (bitcoin-abc implementation as a reference)
+     *
+     * @param sigBytes              signature
+     * @param flags                 verification flags
+     * @throws ScriptException      Exception
+     */
+    private static void checkPubKeyEncoding(byte[] sigBytes, Set<VerifyFlag> flags) throws ScriptException {
+
+        if ((flags.contains(VerifyFlag.STRICTENC))
+                && !ECKey.isPubKeyCanonical(sigBytes))
+            throw new ScriptException(ScriptError.SCRIPT_ERR_PUBKEYTYPE, "Public Key not properly encoded");
+
+        // Only compressed keys are accepted when
+        // SCRIPT_VERIFY_COMPRESSED_PUBKEYTYPE is enabled.
+
+        if (flags.contains(VerifyFlag.PUBKEYTYPE) && !IsCompressedPubKey(sigBytes))
+            throw new ScriptException(ScriptError.SCRIPT_ERR_PUBKEYTYPE, "Publick Key not properly compressed.");
+
+        // If we reach this far, Signature is OK...
+    }
+
+    /**
+     * Checks if the public key given is properly compressed.
+     *
+     * @param sigBytes      Signature
+     * @return              true (properly compressed) / False
+     */
+    private static boolean IsCompressedPubKey(byte[] sigBytes) {
+        //  Non-canonical public key: invalid length for compressed key
+        if (sigBytes.length != 33) return false;
+
+        //  Non-canonical public key: invalid prefix for compressed key
+        if (sigBytes[0] != 0x02 && sigBytes[0] != 0x03) return false;
+
+        return true;
+    }
+
+    /**
+     * checks whether the encoded signature looks to be validly encoded, depending on the flags supplied.
+     * NOTE: this method has been changed, from returning a boolean to returning void and throwing a more
+     * specific exception depending on the cause of the problem.
+     *
+     * Following the implementation from bitcoin-abc, the SignatureEncoding Verification can now fail due to
+     * different factors, and we need info about which ones has explicity failed. so instead of returning a
+     * boolean (which is not specific enough), we throw a more specific exception in case of failure.
+     *
+     * @throws              Exception in case signature is not valid
+     */
+    private static void checkSignatureEncoding(byte[] sigBytes, Set<VerifyFlag> flags) throws VerificationException.SignatureFormatError {
+
+        // NOTE:
+        // When the "STRICTENC" flag is active, we need to check if the Signature encoding is right, and
+        // different errors might be thrown: SIG_DER, SIG_HASHTYPE and FORID.
+        //  - SIG_DER: The signature is not DER-encoded
+        //  - SIGHASH_TYPE: The SIGHASH (last byte in the signature) is wrong.
+        //  - FORKID:
+
+        boolean derEncodingOK = true;
+        boolean sighashTypeOK = true;
+        boolean forkIdOK = true;
+        String errMsg = null;
+
+        // If the flags specify STRICTENC, DERSIG or LOW_S, we check if the Signature is CANONICAL...
+        if ((flags.contains(VerifyFlag.STRICTENC)
+                || flags.contains(VerifyFlag.DERSIG)
+                || flags.contains(VerifyFlag.LOW_S))
+                && !TransactionSignature.isEncodingCanonical(sigBytes)) {
+            derEncodingOK = false;
+            errMsg = "Signature not in DER Format";
+        }
+
+
+        if (derEncodingOK) {
+            // We check the HASHTYPE and the FORKID...
+            if (flags.contains(VerifyFlag.STRICTENC)) {
+
+                // Checking hashtype...
+                if (!TransactionSignature.isValidHashType(sigBytes)) {
+                    sighashTypeOK = false;
+                    errMsg = "Hashtype not correct in Signature";
+                }
+
+
+                // checking forkIdEnabled...
+                boolean usesForkId = TransactionSignature.hasForkId(sigBytes);
+                boolean forIkEnabled = flags.contains(VerifyFlag.SIGHASH_FORKID);
+                if (!forIkEnabled && usesForkId) {
+                    forkIdOK = false;
+                    errMsg = "FORKID verification disabled, but FORKId found in the Signature";
+                }
+                if (forIkEnabled && !usesForkId) {
+                    forkIdOK = false;
+                    errMsg = "FORKID verification enabled, but no FORKId found in the Signature";
+                }
+            }
+        }
+
+
+        // Now we trigger the error. In case more than one error has been detected, we trigger only one of them. The
+        // priority in this case does not affect the outcome of the Script (ScriptException in any case).
+
+        if (!sighashTypeOK) throw new ScriptException(ScriptError.SCRIPT_ERR_SIG_HASHTYPE, errMsg);
+        if (!forkIdOK) throw new ScriptException(ScriptError.SCRIPT_ERR_FORKID, errMsg);
+        if (!derEncodingOK) throw new ScriptException(ScriptError.SCRIPT_ERR_SIG_DER, errMsg);
+
+        // If we reach this far, Signature is OK...
+    }
+
     private static int executeMultiSig(Transaction txContainingThis, int index, Script script, LinkedList<byte[]> stack,
-                                       int opCount, int lastCodeSepLocation, int opcode, 
+                                       int opCount, int lastCodeSepLocation, int opcode, Coin value,
                                        Set<VerifyFlag> verifyFlags) throws ScriptException {
         final boolean requireCanonical = verifyFlags.contains(VerifyFlag.STRICTENC)
             || verifyFlags.contains(VerifyFlag.DERSIG)
@@ -1517,7 +1644,9 @@ public class Script {
             // more expensive than hashing, its not a big deal.
             try {
                 TransactionSignature sig = TransactionSignature.decodeFromBitcoin(sigs.getFirst(), requireCanonical, false);
-                Sha256Hash hash = txContainingThis.hashForSignature(index, connectedScript, (byte) sig.sighashFlags);
+                Sha256Hash hash = sig.useForkId()?
+                        txContainingThis.hashForSignature(index, connectedScript, (byte) sig.sighashFlags)
+                :txContainingThis.hashForWitnessSignature(index, connectedScript, value, (byte) sig.sighashFlags);
                 if (ECKey.verify(hash.getBytes(), sig, pubKey))
                     sigs.pollFirst();
             } catch (Exception e) {
@@ -1559,7 +1688,7 @@ public class Script {
     @Deprecated
     public void correctlySpends(Transaction txContainingThis, long scriptSigIndex, Script scriptPubKey)
             throws ScriptException {
-        correctlySpends(txContainingThis, scriptSigIndex, scriptPubKey, ALL_VERIFY_FLAGS);
+        correctlySpends(txContainingThis, scriptSigIndex, scriptPubKey, Coin.ZERO, ALL_VERIFY_FLAGS);
     }
 
     /**
@@ -1594,7 +1723,7 @@ public class Script {
             if (!validSig)
                 throw new ScriptException(ScriptError.SCRIPT_ERR_CHECKSIGVERIFY, "Invalid signature");
         } else {
-            correctlySpends(txContainingThis, scriptSigIndex, scriptPubKey, verifyFlags);
+            correctlySpends(txContainingThis, scriptSigIndex, scriptPubKey, value, verifyFlags);
         }
     }
 
@@ -1606,7 +1735,7 @@ public class Script {
      * @param scriptPubKey The connected scriptPubKey containing the conditions needed to claim the value.
      * @param verifyFlags Each flag enables one validation rule.
      */
-    public void correctlySpends(Transaction txContainingThis, long scriptSigIndex, Script scriptPubKey,
+    public void correctlySpends(Transaction txContainingThis, long scriptSigIndex, Script scriptPubKey, Coin value,
                                 Set<VerifyFlag> verifyFlags) throws ScriptException {
         // Clone the transaction because executing the script involves editing it, and if we die, we'll leave
         // the tx half broken (also it's not so thread safe to work on it directly.
@@ -1617,14 +1746,24 @@ public class Script {
         }
         if (getProgram().length > MAX_SCRIPT_SIZE || scriptPubKey.getProgram().length > MAX_SCRIPT_SIZE)
             throw new ScriptException(ScriptError.SCRIPT_ERR_SCRIPT_SIZE, "Script larger than 10,000 bytes");
-        
+
+        // In case FORKID is enabled, then we also force the STRICTENC flag
+        if (verifyFlags.contains(VerifyFlag.SIGHASH_FORKID))
+            verifyFlags.add(VerifyFlag.STRICTENC);
+
+        // In case the "SIGPUSHONLY" flag is enmabled, we check that the script is composed of ONLY
+        // PUSH operations...
+        if (verifyFlags.contains(VerifyFlag.SIGPUSHONLY) && (!this.isPushOnly()))
+            throw new ScriptException(ScriptError.SCRIPT_ERR_SIG_PUSHONLY
+                    ,"attempted to spend a P2SH scriptPubKey with a script that contained script ops");
+
         LinkedList<byte[]> stack = new LinkedList<>();
         LinkedList<byte[]> p2shStack = null;
         
-        executeScript(txContainingThis, scriptSigIndex, this, stack, verifyFlags);
+        executeScript(txContainingThis, scriptSigIndex, this, stack, value, verifyFlags);
         if (verifyFlags.contains(VerifyFlag.P2SH))
             p2shStack = new LinkedList<>(stack);
-        executeScript(txContainingThis, scriptSigIndex, scriptPubKey, stack, verifyFlags);
+        executeScript(txContainingThis, scriptSigIndex, scriptPubKey, stack, value, verifyFlags);
         
         if (stack.size() == 0)
             throw new ScriptException(ScriptError.SCRIPT_ERR_EVAL_FALSE, "Stack empty at end of script execution.");
@@ -1655,7 +1794,7 @@ public class Script {
             byte[] scriptPubKeyBytes = p2shStack.pollLast();
             Script scriptPubKeyP2SH = new Script(scriptPubKeyBytes);
             
-            executeScript(txContainingThis, scriptSigIndex, scriptPubKeyP2SH, p2shStack, verifyFlags);
+            executeScript(txContainingThis, scriptSigIndex, scriptPubKeyP2SH, p2shStack, value, verifyFlags);
             
             if (p2shStack.size() == 0)
                 throw new ScriptException(ScriptError.SCRIPT_ERR_EVAL_FALSE, "P2SH stack empty at end of script execution.");
@@ -1665,6 +1804,26 @@ public class Script {
                 throw new ScriptException(ScriptError.SCRIPT_ERR_EVAL_FALSE,
                         "P2SH script execution resulted in a non-true stack: " + Utils.toString(p2shStackCopy));
         }
+    }
+
+    /**
+     * Indicates if this script is made up of only PUSH operations
+     * @return  true (ony PUSH) / False
+     */
+    public boolean isPushOnly() {
+        boolean result = true;
+        Iterator<ScriptChunk> it = chunks.iterator();
+
+        while (result && it.hasNext()) {
+            int opCode = it.next().opcode;
+            // Note that IsPushOnly() *does* consider OP_RESERVED to be a push-type
+            // opcode, however execution of OP_RESERVED fails, so it's not relevant
+            // to P2SH/BIP62 as the scriptSig would fail prior to the P2SH special
+            // validation code being executed.
+            if (opCode > ScriptOpCodes.OP_16) result = false;
+        } // while...
+
+        return result;
     }
 
     // Utility that doesn't copy for internal use

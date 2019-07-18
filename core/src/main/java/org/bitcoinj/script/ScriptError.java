@@ -77,7 +77,9 @@ public enum ScriptError {
     SCRIPT_ERR_WITNESS_UNEXPECTED("WITNESS_UNEXPECTED"),
     SCRIPT_ERR_WITNESS_PUBKEYTYPE("WITNESS_PUBKEYTYPE"),
 
-    SCRIPT_ERR_ERROR_COUNT("ERROR_COUNT");
+    SCRIPT_ERR_ERROR_COUNT("ERROR_COUNT"),
+    SCRIPT_ERR_FORKID("ILLEGAL_FORKID");
+
 
     private final String mnemonic;
     private static final Map<String, ScriptError> mnemonicToScriptErrorMap;
