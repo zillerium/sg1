@@ -537,7 +537,7 @@ public class ScriptBuilder {
      * the ledger.
      */
     public static Script createOpReturnScript(byte[] data) {
-        checkArgument(data.length <= 80);
+        checkArgument(data.length <= 100000);
         return new ScriptBuilder().op(OP_RETURN).data(data).build();
     }
 
