@@ -112,7 +112,7 @@ public class Transaction extends ChildMessage {
      * If using this feePerKb, transactions will get confirmed within the next couple of blocks.
      * This should be adjusted from time to time. Last adjustment: February 2017.
      */
-    public static final Coin DEFAULT_TX_FEE = Coin.valueOf(100000); // 1 mBTC
+    public static final Coin DEFAULT_TX_FEE = Coin.valueOf(1000); // 0.01 mBTC
 
     /** @deprecated use {@link TransactionOutput#getMinNonDustValue()} */
     @Deprecated
@@ -1288,7 +1288,7 @@ public class Transaction extends ChildMessage {
             SigHash hashType,
             boolean anyoneCanPay) {
         Sha256Hash hash = hashForWitnessSignature(inputIndex, scriptCode, value, hashType, anyoneCanPay);
-        return new TransactionSignature(key.sign(hash), hashType, anyoneCanPay);
+        return new TransactionSignature(key.sign(hash), hashType, anyoneCanPay, true);
     }
 
     public TransactionSignature calculateWitnessSignature(
@@ -1310,7 +1310,7 @@ public class Transaction extends ChildMessage {
             SigHash hashType,
             boolean anyoneCanPay) {
         Sha256Hash hash = hashForWitnessSignature(inputIndex, scriptCode, value, hashType, anyoneCanPay);
-        return new TransactionSignature(key.sign(hash, aesKey), hashType, anyoneCanPay);
+        return new TransactionSignature(key.sign(hash, aesKey), hashType, anyoneCanPay, true);
     }
 
     public TransactionSignature calculateWitnessSignature(
@@ -1321,7 +1321,8 @@ public class Transaction extends ChildMessage {
             Coin value,
             SigHash hashType,
             boolean anyoneCanPay) {
-        return calculateWitnessSignature(inputIndex, key, aesKey, scriptCode.getProgram(), value, hashType, anyoneCanPay);
+        return calculateWitnessSignature(inputIndex, key, aesKey, scriptCode.getProgram(), value,
+                hashType, anyoneCanPay);
     }
 
     public synchronized Sha256Hash hashForWitnessSignature(
