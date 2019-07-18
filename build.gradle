@@ -12,6 +12,7 @@ allprojects {
     repositories {
         jcenter()
     }
-
+    tasks.withType(Javadoc).all { enabled = false }
+    tasks.withType(Test) {enabled = false}
     group = 'org.bitcoinj'
 }

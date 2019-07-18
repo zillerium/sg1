@@ -519,6 +519,10 @@ public abstract class NetworkParameters {
 
     public abstract int getProtocolVersionNum(final ProtocolVersion version);
 
+    public int[] getAcceptableAddressCodes() {
+        return acceptableAddressCodes;
+    }
+
     public static enum ProtocolVersion {
         MINIMUM(70000),
         PONG(60001),

@@ -140,6 +140,9 @@ public class Script {
         return creationTimeSeconds;
     }
 
+    public static void executeDebugScript(Transaction tx1, int i, Script script, LinkedList<byte[]> stack, Coin zero, EnumSet<VerifyFlag> allVerifyFlags, ScriptStateListener listener) {
+    }
+
     public void setCreationTimeSeconds(long creationTimeSeconds) {
         this.creationTimeSeconds = creationTimeSeconds;
     }
@@ -704,7 +707,7 @@ public class Script {
     
     ////////////////////// Script verification and helpers ////////////////////////////////
     
-    private static boolean castToBool(byte[] data) {
+    public static boolean castToBool(byte[] data) {
         for (int i = 0; i < data.length; i++)
         {
             // "Can be negative zero" - Bitcoin Core (see OpenSSL's BN_bn2mpi)

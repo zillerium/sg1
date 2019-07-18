@@ -618,4 +618,12 @@ public class Utils {
             parts.add('[' + HEX.encode(push) + ']');
         return SPACE_JOINER.join(parts);
     }
+
+    public static byte[] toByteArray(int... values) {
+        byte[] conv = new byte[values.length];
+        for (int i = 0; i < values.length; i++) {
+            conv[i] = (byte)(values[i] & 0xFF);
+        }
+        return conv;
+    }
 }
