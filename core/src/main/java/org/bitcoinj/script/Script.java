@@ -84,10 +84,11 @@ public class Script {
         CHECKLOCKTIMEVERIFY, // Enable CHECKLOCKTIMEVERIFY operation
         CHECKSEQUENCEVERIFY, // Enable CHECKSEQUENCEVERIFY operation
         SIGHASH_FORKID,
+        REPLAY_PROTECTION,
         PUBKEYTYPE
         ;
     }
-    public static final EnumSet<VerifyFlag> ALL_VERIFY_FLAGS = EnumSet.allOf(VerifyFlag.class);
+    public static final EnumSet<VerifyFlag> ALL_VERIFY_FLAGS = EnumSet.complementOf(EnumSet.of(VerifyFlag.REPLAY_PROTECTION));
 
     private static final Logger log = LoggerFactory.getLogger(Script.class);
     public static final long MAX_SCRIPT_ELEMENT_SIZE = 520;  // bytes
@@ -1457,7 +1458,8 @@ public class Script {
                 // TODO: Should check hash type is known
                 Sha256Hash hash = sig.useForkId() ?
                         txContainingThis.hashForSignature(index, connectedScript, (byte) sig.sighashFlags)
-                        :txContainingThis.hashForWitnessSignature(index, connectedScript, value, sig.sigHashMode(), sig.anyoneCanPay());
+                        :txContainingThis.hashForWitnessSignature(index, connectedScript, value, sig.sigHashMode(),
+                        sig.anyoneCanPay(), verifyFlags);
                 sigValid = ECKey.verify(hash.getBytes(), sig, pubKey);
             }
 
@@ -1648,7 +1650,8 @@ public class Script {
             try {
                 TransactionSignature sig = TransactionSignature.decodeFromBitcoin(sigs.getFirst(), requireCanonical, false);
                 Sha256Hash hash = sig.useForkId()?
-                        txContainingThis.hashForWitnessSignature(index, connectedScript, value, sig.sigHashMode(), sig.anyoneCanPay())
+                        txContainingThis.hashForWitnessSignature(index, connectedScript, value, sig.sigHashMode(),
+                                sig.anyoneCanPay(), verifyFlags)
                         :txContainingThis.hashForSignature(index, connectedScript, (byte) sig.sighashFlags);
 
                 if (ECKey.verify(hash.getBytes(), sig, pubKey))

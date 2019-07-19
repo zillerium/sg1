@@ -964,7 +964,8 @@ public class Transaction extends ChildMessage {
         addInput(input);
         int inputIndex = inputs.size() - 1;
         Sha256Hash hash = forkId ?
-                hashForWitnessSignature(inputIndex, scriptPubKey, prevOut.getConnectedOutput().getValue(), sigHash, anyoneCanPay) :
+                hashForWitnessSignature(inputIndex, scriptPubKey, prevOut.getConnectedOutput().getValue(),
+                        sigHash, anyoneCanPay) :
                 hashForSignature(inputIndex, scriptPubKey, sigHash, anyoneCanPay);
 
         ECKey.ECDSASignature ecSig = sigKey.sign(hash);
@@ -1287,7 +1288,7 @@ public class Transaction extends ChildMessage {
             Coin value,
             SigHash hashType,
             boolean anyoneCanPay) {
-        Sha256Hash hash = hashForWitnessSignature(inputIndex, scriptCode, value, hashType, anyoneCanPay);
+        Sha256Hash hash = hashForWitnessSignature(inputIndex, scriptCode, value, hashType, anyoneCanPay, null);
         return new TransactionSignature(key.sign(hash), hashType, anyoneCanPay, true);
     }
 
@@ -1309,7 +1310,7 @@ public class Transaction extends ChildMessage {
             Coin value,
             SigHash hashType,
             boolean anyoneCanPay) {
-        Sha256Hash hash = hashForWitnessSignature(inputIndex, scriptCode, value, hashType, anyoneCanPay);
+        Sha256Hash hash = hashForWitnessSignature(inputIndex, scriptCode, value, hashType, anyoneCanPay, null);
         return new TransactionSignature(key.sign(hash, aesKey), hashType, anyoneCanPay, true);
     }
 
@@ -1330,9 +1331,10 @@ public class Transaction extends ChildMessage {
             byte[] scriptCode,
             Coin prevValue,
             SigHash type,
-            boolean anyoneCanPay) {
+            boolean anyoneCanPay,
+            Set<Script.VerifyFlag> verifyFlags) {
         int sigHash = TransactionSignature.calcSigHashValue(type, anyoneCanPay, true);
-        return hashForWitnessSignature(inputIndex, scriptCode, prevValue, (byte) sigHash);
+        return hashForWitnessSignature(inputIndex, scriptCode, prevValue, (byte) sigHash, verifyFlags);
     }
 
     /**
@@ -1356,16 +1358,35 @@ public class Transaction extends ChildMessage {
             Coin prevValue,
             SigHash type,
             boolean anyoneCanPay) {
-        return hashForWitnessSignature(inputIndex, scriptCode.getProgram(), prevValue, type, anyoneCanPay);
+        return hashForWitnessSignature(inputIndex, scriptCode.getProgram(), prevValue, type, anyoneCanPay, null);
     }
 
     public synchronized Sha256Hash hashForWitnessSignature(
             int inputIndex,
             byte[] scriptCode,
             Coin prevValue,
-            byte sigHashType){
+            byte sigHashType,
+            Set<Script.VerifyFlag> verifyFlags){
         ByteArrayOutputStream bos = new UnsafeByteArrayOutputStream(length == UNKNOWN_LENGTH ? 256 : length + 4);
         try {
+
+            // Replay Protection Implementation:
+            // If the "REPLAY PRIOTECTION" Flag is activated, we implement the Replay Protection Algorithm, which
+            // allows us the use different Fork IDS in the future. The Fork ID will be stored in the 24 more significant
+            // bits of nSigHashType (which is not a single byte now, but a 32 one).
+            // The following implementation is based on the one from bitcoin-abc:
+
+            int nSigHashType = sigHashType;
+            if ((verifyFlags!= null) && verifyFlags.contains(Script.VerifyFlag.REPLAY_PROTECTION)) {
+                // Legacy chain's value for fork id must be of the form 0xffxxxx.
+                // By xoring with 0xdead, we ensure that the value will be different
+                // from the original one, even if it already starts with 0xff.
+
+                int forkId = 0; // for now, the forkID is ZERO.
+                int newForkValue = forkId ^ 0xdead;
+                nSigHashType = sigHashType | ((0xff0000 | newForkValue) << 8);
+            }
+
             byte[] hashPrevouts = new byte[32];
             byte[] hashSequence = new byte[32];
             byte[] hashOutputs = new byte[32];
