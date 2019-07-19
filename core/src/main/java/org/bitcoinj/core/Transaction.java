@@ -196,8 +196,12 @@ public class Transaction extends ChildMessage {
     private String memo;
 
     public Transaction(NetworkParameters params) {
+        this(params, CURRENT_VERSION);
+    }
+
+    public Transaction(NetworkParameters params, int version) {
         super(params);
-        version = 1;
+        this.version = version;
         inputs = new ArrayList<>();
         outputs = new ArrayList<>();
         // We don't initialize appearsIn deliberately as it's only useful for transactions stored in the wallet.
