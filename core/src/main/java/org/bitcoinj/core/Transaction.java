@@ -1442,7 +1442,7 @@ public class Transaction extends ChildMessage {
             uint32ToByteStreamLE(inputs.get(inputIndex).getSequenceNumber(), bos);
             bos.write(hashOutputs);
             uint32ToByteStreamLE(this.lockTime, bos);
-            uint32ToByteStreamLE(sigHashType, bos);
+            uint32ToByteStreamLE(nSigHashType, bos);
         } catch (IOException e) {
             throw new RuntimeException(e);  // Cannot happen.
         }
