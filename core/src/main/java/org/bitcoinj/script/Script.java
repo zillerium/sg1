@@ -1648,8 +1648,9 @@ public class Script {
             try {
                 TransactionSignature sig = TransactionSignature.decodeFromBitcoin(sigs.getFirst(), requireCanonical, false);
                 Sha256Hash hash = sig.useForkId()?
-                        txContainingThis.hashForSignature(index, connectedScript, (byte) sig.sighashFlags)
-                :txContainingThis.hashForWitnessSignature(index, connectedScript, value, (byte) sig.sighashFlags);
+                        txContainingThis.hashForWitnessSignature(index, connectedScript, value, sig.sigHashMode(), sig.anyoneCanPay())
+                        :txContainingThis.hashForSignature(index, connectedScript, (byte) sig.sighashFlags);
+
                 if (ECKey.verify(hash.getBytes(), sig, pubKey))
                     sigs.pollFirst();
             } catch (Exception e) {

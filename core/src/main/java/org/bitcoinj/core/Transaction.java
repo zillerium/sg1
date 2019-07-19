@@ -1331,7 +1331,7 @@ public class Transaction extends ChildMessage {
             Coin prevValue,
             SigHash type,
             boolean anyoneCanPay) {
-        int sigHash = TransactionSignature.calcSigHashValue(type, anyoneCanPay);
+        int sigHash = TransactionSignature.calcSigHashValue(type, anyoneCanPay, true);
         return hashForWitnessSignature(inputIndex, scriptCode, prevValue, (byte) sigHash);
     }
 
@@ -1421,7 +1421,7 @@ public class Transaction extends ChildMessage {
             uint32ToByteStreamLE(inputs.get(inputIndex).getSequenceNumber(), bos);
             bos.write(hashOutputs);
             uint32ToByteStreamLE(this.lockTime, bos);
-            uint32ToByteStreamLE(0x000000ff & sigHashType, bos);
+            uint32ToByteStreamLE(sigHashType, bos);
         } catch (IOException e) {
             throw new RuntimeException(e);  // Cannot happen.
         }
