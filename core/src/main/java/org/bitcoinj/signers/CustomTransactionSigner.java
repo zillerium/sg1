@@ -85,9 +85,8 @@ public abstract class CustomTransactionSigner implements TransactionSigner {
                 continue;
             }
 
-            Sha256Hash sighash = propTx.useForkId ?
-                    tx.hashForWitnessSignature(i, redeemData.redeemScript, tx.getInput(i).getConnectedOutput().getValue(), Transaction.SigHash.ALL, false):
-                    tx.hashForSignature(i, redeemData.redeemScript, Transaction.SigHash.ALL, false);
+            Sha256Hash sighash = tx.hashForWitnessSignature(i, redeemData.redeemScript,
+                    tx.getInput(i).getConnectedOutput().getValue(), Transaction.SigHash.ALL, false);
             SignatureAndKey sigKey = getSignature(sighash, propTx.keyPaths.get(scriptPubKey));
             TransactionSignature txSig = new TransactionSignature(sigKey.sig, Transaction.SigHash.ALL, false, propTx.useForkId);
             int sigIndex = inputScript.getSigInsertionIndex(sighash, sigKey.pubKey);

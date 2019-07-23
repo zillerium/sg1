@@ -281,8 +281,7 @@ public class SendRequest {
     /** Use Version 2 Transactions with forkid signatures **/
     private boolean useForkId = false;
 
-    public void setUseForkId(boolean useForkId)
-    {
+    public void setUseForkId(boolean useForkId) {
         this.useForkId = useForkId;
         if(tx != null)
             tx.setVersion(Transaction.CURRENT_VERSION);

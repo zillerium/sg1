@@ -115,11 +115,8 @@ public class LocalTransactionSigner implements TransactionSigner {
             try {
                 if (ScriptPattern.isP2PK(scriptPubKey) || ScriptPattern.isP2PKH(scriptPubKey)
                         || ScriptPattern.isP2SH(scriptPubKey)) {
-                    TransactionSignature signature = propTx.useForkId ?
-                            tx.calculateWitnessSignature(i, key, script, tx.getInput(i).getConnectedOutput().getValue(),
-                                    Transaction.SigHash.ALL, false)
-                            : tx.calculateSignature(i, key, script, Transaction.SigHash.ALL,
-                            false);
+                    TransactionSignature signature = tx.calculateWitnessSignature(i, key, script,
+                            tx.getInput(i).getConnectedOutput().getValue(), Transaction.SigHash.ALL, false);
 
                     // at this point we have incomplete inputScript with OP_0 in place of one or more signatures. We
                     // already have calculated the signature using the local key and now need to insert it in the
