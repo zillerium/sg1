@@ -1361,6 +1361,13 @@ public class Transaction extends ChildMessage {
             Set<Script.VerifyFlag> verifyFlags){
         ByteArrayOutputStream bos = new UnsafeByteArrayOutputStream(length == UNKNOWN_LENGTH ? 256 : length + 4);
         try {
+            // Replay Protection Implementation:
+            // If the "REPLAY PRIOTECTION" Flag is activated, we implement the Replay Protection Algorithm, which
+            // allows us the use different Fork IDS in the future. The Fork ID will be stored in the 24 more significant
+            // bits of nSigHashType (which is not a single byte now, but a 32 one).
+            // The following implementation is based on the one from bitcoin-abc:
+
+            int nSigHashType = sigHashType;
             if ((verifyFlags!= null) && verifyFlags.contains(Script.VerifyFlag.REPLAY_PROTECTION)) {
                 // Legacy chain's value for fork id must be of the form 0xffxxxx.
                 // By xoring with 0xdead, we ensure that the value will be different
@@ -1368,9 +1375,8 @@ public class Transaction extends ChildMessage {
 
                 int forkId = 0; // for now, the forkID is ZERO.
                 int newForkValue = forkId ^ 0xdead;
-                sigHashType = (byte) (sigHashType | ((0xff0000 | newForkValue) << 8));
+                nSigHashType = sigHashType | ((0xff0000 | newForkValue) << 8);
             }
-
             byte[] hashPrevouts = new byte[32];
             byte[] hashSequence = new byte[32];
             byte[] hashOutputs = new byte[32];
@@ -1426,7 +1432,7 @@ public class Transaction extends ChildMessage {
             uint32ToByteStreamLE(inputs.get(inputIndex).getSequenceNumber(), bos);
             bos.write(hashOutputs);
             uint32ToByteStreamLE(this.lockTime, bos);
-            uint32ToByteStreamLE(sigHashType, bos);
+            uint32ToByteStreamLE(nSigHashType, bos);
         } catch (IOException e) {
             throw new RuntimeException(e);  // Cannot happen.
         }

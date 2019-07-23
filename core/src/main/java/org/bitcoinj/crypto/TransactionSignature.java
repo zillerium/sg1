@@ -113,7 +113,7 @@ public class TransactionSignature extends ECKey.ECDSASignature {
         if (signature.length < 9 || signature.length > 73)
             return false;
 
-        int hashType = (signature[signature.length-1] & 0xff) & ~Transaction.SigHash.ANYONECANPAY.value; // mask the byte to prevent sign-extension hurting us
+        int hashType = (signature[signature.length-1] & 0xff) & ~(Transaction.SigHash.ANYONECANPAY.value| SigHash.FORKID.value); // mask the byte to prevent sign-extension hurting us
         if (hashType < Transaction.SigHash.ALL.value || hashType > Transaction.SigHash.SINGLE.value)
             return false;
 

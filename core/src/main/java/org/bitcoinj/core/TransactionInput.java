@@ -511,7 +511,7 @@ public class TransactionInput extends ChildMessage {
      * <p>This method simply calls {@code DefaultRiskAnalysis.isInputStandard(this)}.</p>
      */
     public DefaultRiskAnalysis.RuleViolation isStandard() {
-        return DefaultRiskAnalysis.isInputStandard(this);
+        return DefaultRiskAnalysis.isInputStandard(this, true);
     }
 
     @Override

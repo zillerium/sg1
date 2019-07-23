@@ -157,7 +157,8 @@ public class DefaultRiskAnalysisTest {
         TransactionSignature sig = TransactionSignature.dummy();
         Script scriptOk = ScriptBuilder.createInputScript(sig);
         assertEquals(RuleViolation.NONE,
-                DefaultRiskAnalysis.isInputStandard(new TransactionInput(MAINNET, null, scriptOk.getProgram())));
+                DefaultRiskAnalysis.isInputStandard(new TransactionInput(MAINNET, null,
+                        scriptOk.getProgram()), false));
 
         byte[] sigBytes = sig.encodeToBitcoin();
         // Appending a zero byte makes the signature uncanonical without violating DER encoding.
@@ -165,7 +166,7 @@ public class DefaultRiskAnalysisTest {
                 .build();
         assertEquals(RuleViolation.SIGNATURE_CANONICAL_ENCODING,
                 DefaultRiskAnalysis.isInputStandard(new TransactionInput(MAINNET, null, scriptUncanonicalEncoding
-                        .getProgram())));
+                        .getProgram()), false));
     }
 
     @Test
@@ -175,7 +176,8 @@ public class DefaultRiskAnalysisTest {
         Script scriptHighS = ScriptBuilder
                 .createInputScript(new TransactionSignature(sig.r, ECKey.CURVE.getN().subtract(sig.s)));
         assertEquals(RuleViolation.SIGNATURE_CANONICAL_ENCODING,
-                DefaultRiskAnalysis.isInputStandard(new TransactionInput(MAINNET, null, scriptHighS.getProgram())));
+                DefaultRiskAnalysis.isInputStandard(new TransactionInput(MAINNET, null,
+                        scriptHighS.getProgram()), false));
 
         // This is a real transaction. Its signatures S component is "low".
         Transaction tx1 = new Transaction(MAINNET, Utils.HEX.decode(
