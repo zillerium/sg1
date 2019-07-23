@@ -279,7 +279,7 @@ public class Transaction extends ChildMessage {
             } else {
                 ByteArrayOutputStream stream = new UnsafeByteArrayOutputStream(length < 32 ? 32 : length + 32);
                 try {
-                    bitcoinSerializeToStream(stream, false);
+                    bitcoinSerializeToStream(stream);
                 } catch (IOException e) {
                     throw new RuntimeException(e); // cannot happen
                 }
@@ -300,7 +300,7 @@ public class Transaction extends ChildMessage {
             } else {
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
                 try {
-                    bitcoinSerializeToStream(baos, hasWitnesses());
+                    bitcoinSerializeToStream(baos);
                 } catch (IOException e) {
                     throw new RuntimeException(e); // cannot happen
                 }
@@ -315,10 +315,10 @@ public class Transaction extends ChildMessage {
         if (!hasWitnesses())
             return getMessageSize() * 4;
         try (final ByteArrayOutputStream stream = new UnsafeByteArrayOutputStream(length)) {
-            bitcoinSerializeToStream(stream, false);
+            bitcoinSerializeToStream(stream);
             final int baseSize = stream.size();
             stream.reset();
-            bitcoinSerializeToStream(stream, true);
+            bitcoinSerializeToStream(stream);
             final int totalSize = stream.size();
             return baseSize * 3 + totalSize;
         } catch (IOException e) {
@@ -1261,7 +1261,7 @@ public class Transaction extends ChildMessage {
             }
 
             ByteArrayOutputStream bos = new ByteArrayOutputStream(tx.length);
-            tx.bitcoinSerializeToStream(bos, false);
+            tx.bitcoinSerializeToStream(bos);
             // We also have to write a hash type (sigHashType is actually an unsigned char)
             uint32ToByteStreamLE(0x000000ff & sigHashType, bos);
             // Note that this is NOT reversed to ensure it will be signed correctly. If it were to be printed out
@@ -1442,24 +1442,9 @@ public class Transaction extends ChildMessage {
 
     @Override
     protected void bitcoinSerializeToStream(OutputStream stream) throws IOException {
-        boolean useSegwit = hasWitnesses()
-                && protocolVersion >= NetworkParameters.ProtocolVersion.WITNESS_VERSION.getBitcoinProtocolVersion();
-        bitcoinSerializeToStream(stream, useSegwit);
-    }
-
-    /**
-     * Serialize according to <a href="https://github.com/bitcoin/bips/blob/master/bip-0144.mediawiki">BIP144</a> or the
-     * <a href="https://en.bitcoin.it/wiki/Protocol_documentation#tx">classic format</a>, depending on if segwit is
-     * desired.
-     */
-    protected void bitcoinSerializeToStream(OutputStream stream, boolean useSegwit) throws IOException {
         // version
         uint32ToByteStreamLE(version, stream);
-        // marker, flag
-        if (useSegwit) {
-            stream.write(0);
-            stream.write(1);
-        }
+
         // txin_count, txins
         stream.write(new VarInt(inputs.size()).encode());
         for (TransactionInput in : inputs)
@@ -1468,12 +1453,7 @@ public class Transaction extends ChildMessage {
         stream.write(new VarInt(outputs.size()).encode());
         for (TransactionOutput out : outputs)
             out.bitcoinSerialize(stream);
-        // script_witnisses
-        if (useSegwit) {
-            for (TransactionInput in : inputs) {
-                in.getWitness().bitcoinSerializeToStream(stream);
-            }
-        }
+
         // lock_time
         uint32ToByteStreamLE(lockTime, stream);
     }

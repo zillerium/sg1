@@ -698,14 +698,9 @@ public class TransactionTest {
         }
 
         @Override
-        protected void bitcoinSerializeToStream(OutputStream stream, boolean useSegwit) throws IOException {
+        protected void bitcoinSerializeToStream(OutputStream stream) throws IOException {
             // version
             uint32ToByteStreamLE(getVersion(), stream);
-            // marker, flag
-            if (useSegwit) {
-                stream.write(0);
-                stream.write(1);
-            }
             // txin_count, txins
             long inputsSize = hackInputsSize ? Integer.MAX_VALUE : getInputs().size();
             stream.write(new VarInt(inputsSize).encode());
@@ -716,21 +711,6 @@ public class TransactionTest {
             stream.write(new VarInt(outputsSize).encode());
             for (TransactionOutput out : getOutputs())
                 out.bitcoinSerialize(stream);
-            // script_witnisses
-            if (useSegwit) {
-                for (TransactionInput in : getInputs()) {
-                    TransactionWitness witness = in.getWitness();
-                    long pushCount = hackWitnessPushCountSize ? Integer.MAX_VALUE : witness.getPushCount();
-                    stream.write(new VarInt(pushCount).encode());
-                    for (int i = 0; i < witness.getPushCount(); i++) {
-                        byte[] push = witness.getPush(i);
-                        stream.write(new VarInt(push.length).encode());
-                        stream.write(push);
-                    }
-
-                    in.getWitness().bitcoinSerializeToStream(stream);
-                }
-            }
             // lock_time
             uint32ToByteStreamLE(getLockTime(), stream);
         }

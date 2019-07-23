@@ -430,7 +430,7 @@ public class Wallet extends BaseTaggableObject
     }
 
     /**
-     * @deprecated Use {@link #createBasic(NetworkParameters)}, then {@link #importKeys(List)}.
+     * @deprecated Use {createBasic(NetworkParameters)}, then {@link #importKeys(List)}.
      */
     @Deprecated
     public static Wallet fromKeys(NetworkParameters params, List<ECKey> keys) {
@@ -4324,8 +4324,8 @@ public class Wallet extends BaseTaggableObject
                     // We assume if its already signed, its hopefully got a SIGHASH type that will not invalidate when
                     // we sign missing pieces (to check this would require either assuming any signatures are signing
                     // standard output types or a way to get processed signatures out of script execution)
-                    txIn.getScriptSig().correctlySpends(tx, i, txIn.getWitness(), connectedOutput.getValue(),
-                            connectedOutput.getScriptPubKey(), Script.ALL_VERIFY_FLAGS);
+                    txIn.getScriptSig().correctlySpends(tx, i, scriptPubKey, connectedOutput.getValue(),
+                            Script.ALL_VERIFY_FLAGS);
                     log.warn("Input {} already correctly spends output, assuming SIGHASH type used will be safe and skipping signing.", i);
                     continue;
                 } catch (ScriptException e) {
@@ -4336,7 +4336,7 @@ public class Wallet extends BaseTaggableObject
                 RedeemData redeemData = txIn.getConnectedRedeemData(maybeDecryptingKeyBag);
                 checkNotNull(redeemData, "Transaction exists in wallet that we cannot redeem: %s", txIn.getOutpoint().getHash());
                 txIn.setScriptSig(scriptPubKey.createEmptyInputScript(redeemData.keys.get(0), redeemData.redeemScript));
-                txIn.setWitness(scriptPubKey.createEmptyWitness(redeemData.keys.get(0)));
+                txIn.setWitness(null);
             }
 
             TransactionSigner.ProposedTransaction proposal = new TransactionSigner.ProposedTransaction(tx, req.getUseForkId());
