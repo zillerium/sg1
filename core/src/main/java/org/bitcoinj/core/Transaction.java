@@ -134,7 +134,6 @@ public class Transaction extends ChildMessage {
 
     // These are in memory helpers only. They contain the transaction hashes without and with witness.
     private Sha256Hash cachedTxId;
-    private Sha256Hash cachedWTxId;
 
     // Data about how confirmed this tx is. Serialized, may be null.
     @Nullable private TransactionConfidence confidence;
@@ -241,9 +240,7 @@ public class Transaction extends ChildMessage {
             MessageSerializer setSerializer, int length, @Nullable byte[] hashFromHeader) throws ProtocolException {
         super(params, payload, offset, parent, setSerializer, length);
         if (hashFromHeader != null) {
-            cachedWTxId = Sha256Hash.wrapReversed(hashFromHeader);
-            if (!hasWitnesses())
-                cachedTxId = cachedWTxId;
+            cachedTxId = Sha256Hash.wrapReversed(hashFromHeader);
         }
     }
 
@@ -274,63 +271,25 @@ public class Transaction extends ChildMessage {
      */
     public Sha256Hash getTxId() {
         if (cachedTxId == null) {
-            if (!hasWitnesses() && cachedWTxId != null) {
-                cachedTxId = cachedWTxId;
-            } else {
-                ByteArrayOutputStream stream = new UnsafeByteArrayOutputStream(length < 32 ? 32 : length + 32);
-                try {
-                    bitcoinSerializeToStream(stream);
-                } catch (IOException e) {
-                    throw new RuntimeException(e); // cannot happen
-                }
-                cachedTxId = Sha256Hash.wrapReversed(Sha256Hash.hashTwice(stream.toByteArray()));
+            ByteArrayOutputStream stream = new UnsafeByteArrayOutputStream(length < 32 ? 32 : length + 32);
+            try {
+                bitcoinSerializeToStream(stream);
+            } catch (IOException e) {
+                throw new RuntimeException(e); // cannot happen
             }
+            cachedTxId = Sha256Hash.wrapReversed(Sha256Hash.hashTwice(stream.toByteArray()));
         }
         return cachedTxId;
     }
 
-    /**
-     * Returns the witness transaction id (aka witness id) as per BIP144. For transactions without witness, this is the
-     * same as {@link #getTxId()}.
-     */
-    public Sha256Hash getWTxId() {
-        if (cachedWTxId == null) {
-            if (!hasWitnesses() && cachedTxId != null) {
-                cachedWTxId = cachedTxId;
-            } else {
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                try {
-                    bitcoinSerializeToStream(baos);
-                } catch (IOException e) {
-                    throw new RuntimeException(e); // cannot happen
-                }
-                cachedWTxId = Sha256Hash.wrapReversed(Sha256Hash.hashTwice(baos.toByteArray()));
-            }
-        }
-        return cachedWTxId;
-    }
-
     /** Gets the transaction weight as defined in BIP141. */
     public int getWeight() {
-        if (!hasWitnesses())
-            return getMessageSize() * 4;
-        try (final ByteArrayOutputStream stream = new UnsafeByteArrayOutputStream(length)) {
-            bitcoinSerializeToStream(stream);
-            final int baseSize = stream.size();
-            stream.reset();
-            bitcoinSerializeToStream(stream);
-            final int totalSize = stream.size();
-            return baseSize * 3 + totalSize;
-        } catch (IOException e) {
-            throw new RuntimeException(e); // cannot happen
-        }
+        return getMessageSize() * 4;
     }
 
     /** Gets the virtual transaction size as defined in BIP141. */
     public int getVsize() {
-        if (!hasWitnesses())
-            return getMessageSize();
-        return (getWeight() + 3) / 4; // round up
+        return getMessageSize();
     }
 
     /**
@@ -580,7 +539,6 @@ public class Transaction extends ChildMessage {
     protected void unCache() {
         super.unCache();
         cachedTxId = null;
-        cachedWTxId = null;
     }
 
     protected static int calcLength(byte[] buf, int offset) {
@@ -643,9 +601,6 @@ public class Transaction extends ChildMessage {
         parseInputs();
         // txout_count, txouts
         parseOutputs();
-        // script_witnesses
-        if (useSegwit)
-            parseWitnesses();
         // lock_time
         lockTime = readUint32();
         optimalEncodingMessageSize += 4;
@@ -677,30 +632,6 @@ public class Transaction extends ChildMessage {
             optimalEncodingMessageSize += 8 + VarInt.sizeOf(scriptLen) + scriptLen;
             cursor += scriptLen;
         }
-    }
-
-    private void parseWitnesses() {
-        int numWitnesses = inputs.size();
-        for (int i = 0; i < numWitnesses; i++) {
-            long pushCount = readVarInt();
-            TransactionWitness witness = new TransactionWitness((int) pushCount);
-            getInput(i).setWitness(witness);
-            optimalEncodingMessageSize += VarInt.sizeOf(pushCount);
-            for (int y = 0; y < pushCount; y++) {
-                long pushSize = readVarInt();
-                optimalEncodingMessageSize += VarInt.sizeOf(pushSize) + pushSize;
-                byte[] push = readBytes((int) pushSize);
-                witness.setPush(y, push);
-            }
-        }
-    }
-
-    /** @return true of the transaction has any witnesses in any of its inputs */
-    public boolean hasWitnesses() {
-        for (TransactionInput in : inputs)
-            if (in.hasWitness())
-                return true;
-        return false;
     }
 
     public int getOptimalEncodingMessageSize() {
@@ -765,10 +696,8 @@ public class Transaction extends ChildMessage {
         if (indent == null)
             indent = "";
         StringBuilder s = new StringBuilder();
-        Sha256Hash txId = getTxId(), wTxId = getWTxId();
+        Sha256Hash txId = getTxId();
         s.append(indent).append(txId);
-        if (!wTxId.equals(txId))
-            s.append(", wtxid ").append(wTxId);
         s.append('\n');
         int weight = getWeight();
         int size = unsafeBitcoinSerialize().length;
@@ -829,11 +758,6 @@ public class Transaction extends ChildMessage {
                     if (value != null)
                         s.append("  ").append(value.toFriendlyString());
                     s.append('\n');
-                    if (in.hasWitness()) {
-                        s.append(indent).append("        witness:");
-                        s.append(in.getWitness());
-                        s.append('\n');
-                    }
                     final TransactionOutPoint outpoint = in.getOutpoint();
                     final TransactionOutput connectedOutput = outpoint.getConnectedOutput();
                     s.append(indent).append("        ");
@@ -978,10 +902,8 @@ public class Transaction extends ChildMessage {
                 sigHash, anyoneCanPay);
         if (ScriptPattern.isP2PK(scriptPubKey)) {
             input.setScriptSig(ScriptBuilder.createInputScript(signature));
-            input.setWitness(null);
         } else if (ScriptPattern.isP2PKH(scriptPubKey)) {
             input.setScriptSig(ScriptBuilder.createInputScript(signature, sigKey));
-            input.setWitness(null);
         } else {
             throw new ScriptException(ScriptError.SCRIPT_ERR_UNKNOWN_ERROR, "Don't know how to sign for this kind of scriptPubKey: " + scriptPubKey);
         }
@@ -1204,7 +1126,6 @@ public class Transaction extends ChildMessage {
             for (int i = 0; i < tx.inputs.size(); i++) {
                 TransactionInput input = tx.inputs.get(i);
                 input.clearScriptBytes();
-                input.setWitness(null);
             }
 
             // This step has no purpose beyond being synchronized with Bitcoin Core's bugs. OP_CODESEPARATOR

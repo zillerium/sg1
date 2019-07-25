@@ -59,7 +59,7 @@ public interface TransactionSigner {
         }
         public ProposedTransaction(Transaction partialTx, boolean useForkId) {
             this.partialTx = partialTx;
-            this.keyPaths = new HashMap<Script, List<ChildNumber>>();
+            this.keyPaths = new HashMap<>();
             this.useForkId = useForkId;
         }
 
