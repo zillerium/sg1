@@ -314,9 +314,6 @@ public class TransactionOutput extends ChildMessage {
             else if (ScriptPattern.isP2PKH(script))
                 return transactionBag.isPubKeyHashMine(ScriptPattern.extractHashFromP2PKH(script),
                         Script.ScriptType.P2PKH);
-            else if (ScriptPattern.isP2WPKH(script))
-                return transactionBag.isPubKeyHashMine(ScriptPattern.extractHashFromP2WH(script),
-                        Script.ScriptType.P2WPKH);
             else
                 return false;
         } catch (ScriptException e) {

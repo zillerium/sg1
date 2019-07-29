@@ -76,17 +76,6 @@ public class KeyChainGroupTest {
         assertEquals(Script.ScriptType.P2PKH, address.getOutputScriptType());
     }
 
-    @Test
-    public void createDeterministic_P2WPKH() {
-        KeyChainGroup kcg = KeyChainGroup.builder(MAINNET).fromRandom(Script.ScriptType.P2WPKH).build();
-        // check default
-        Address address = kcg.currentAddress(KeyPurpose.RECEIVE_FUNDS);
-        assertEquals(Script.ScriptType.P2WPKH, address.getOutputScriptType());
-        // check fallback (this will go away at some point)
-        address = kcg.freshAddress(KeyPurpose.RECEIVE_FUNDS, Script.ScriptType.P2PKH, 0);
-        assertEquals(Script.ScriptType.P2PKH, address.getOutputScriptType());
-    }
-
     private KeyChainGroup createMarriedKeyChainGroup() {
         DeterministicKeyChain chain = createMarriedKeyChain();
         KeyChainGroup group = KeyChainGroup.builder(MAINNET).lookaheadSize(LOOKAHEAD_SIZE).addChain(chain).build();
@@ -527,12 +516,6 @@ public class KeyChainGroupTest {
         group.addAndActivateHDChain(chain2);
         assertEquals("1JLnjJEXcyByAaW6sqSxNvGiiSEWRhdvPb", group.currentAddress(KeyPurpose.RECEIVE_FUNDS).toString());
 
-        final DeterministicKeyChain chain3 = DeterministicKeyChain.builder().seed(seed)
-                .accountPath(DeterministicKeyChain.BIP44_ACCOUNT_ZERO_PATH).outputScriptType(Script.ScriptType.P2WPKH)
-                .build();
-        group.addAndActivateHDChain(chain3);
-        assertEquals("bc1q5fa84aghxd6uzk5g2ywkppmzlut5d77vg8cd20",
-                group.currentAddress(KeyPurpose.RECEIVE_FUNDS).toString());
     }
 
     @Test(expected = DeterministicUpgradeRequiredException.class)
@@ -541,7 +524,6 @@ public class KeyChainGroupTest {
         group = KeyChainGroup.builder(MAINNET).build();
         group.importKeys(new ECKey(), new ECKey());
         assertTrue(group.isDeterministicUpgradeRequired(Script.ScriptType.P2PKH, 0));
-        assertTrue(group.isDeterministicUpgradeRequired(Script.ScriptType.P2WPKH, 0));
         group.freshKey(KeyChain.KeyPurpose.RECEIVE_FUNDS);   // throws
     }
 
@@ -559,7 +541,6 @@ public class KeyChainGroupTest {
         group.upgradeToDeterministic(Script.ScriptType.P2PKH, KeyChainGroupStructure.DEFAULT, 0, null);
         assertFalse(group.isEncrypted());
         assertFalse(group.isDeterministicUpgradeRequired(Script.ScriptType.P2PKH, 0));
-        assertTrue(group.isDeterministicUpgradeRequired(Script.ScriptType.P2WPKH, 0));
         DeterministicKey dkey1 = group.freshKey(KeyChain.KeyPurpose.RECEIVE_FUNDS);
         DeterministicSeed seed1 = group.getActiveKeyChain().getSeed();
         assertNotNull(seed1);
@@ -568,7 +549,6 @@ public class KeyChainGroupTest {
         group.upgradeToDeterministic(Script.ScriptType.P2PKH, KeyChainGroupStructure.DEFAULT, 0, null);  // Should give same result as last time.
         assertFalse(group.isEncrypted());
         assertFalse(group.isDeterministicUpgradeRequired(Script.ScriptType.P2PKH, 0));
-        assertTrue(group.isDeterministicUpgradeRequired(Script.ScriptType.P2WPKH, 0));
         DeterministicKey dkey2 = group.freshKey(KeyChain.KeyPurpose.RECEIVE_FUNDS);
         DeterministicSeed seed2 = group.getActiveKeyChain().getSeed();
         assertEquals(seed1, seed2);
@@ -614,7 +594,6 @@ public class KeyChainGroupTest {
         group.upgradeToDeterministic(Script.ScriptType.P2PKH, KeyChainGroupStructure.DEFAULT, 0, AES_KEY);
         assertTrue(group.isEncrypted());
         assertFalse(group.isDeterministicUpgradeRequired(Script.ScriptType.P2PKH, 0));
-        assertTrue(group.isDeterministicUpgradeRequired(Script.ScriptType.P2WPKH, 0));
         final DeterministicSeed deterministicSeed = group.getActiveKeyChain().getSeed();
         assertNotNull(deterministicSeed);
         assertTrue(deterministicSeed.isEncrypted());
@@ -670,40 +649,6 @@ public class KeyChainGroupTest {
         final ECKey key = ECKey.fromPrivate(BigInteger.TEN);
         group.importKeys(key);
         group.isWatching();
-    }
-
-    @Test
-    public void segwitKeyChainGroup() throws Exception {
-        group = KeyChainGroup.builder(MAINNET).lookaheadSize(LOOKAHEAD_SIZE)
-                .addChain(DeterministicKeyChain.builder().entropy(ENTROPY, 0).outputScriptType(Script.ScriptType.P2WPKH)
-                        .accountPath(DeterministicKeyChain.ACCOUNT_ONE_PATH).build())
-                .build();
-        assertEquals(Script.ScriptType.P2WPKH, group.getActiveKeyChain().getOutputScriptType());
-        assertEquals("bc1qhcurdec849thpjjp3e27atvya43gy2snrechd9",
-                group.currentAddress(KeyPurpose.RECEIVE_FUNDS).toString());
-        assertEquals("bc1qw8sf3mwuwn74qnhj83gjg0cwkk78fun2pxl9t2", group.currentAddress(KeyPurpose.CHANGE).toString());
-
-        // round-trip through protobuf
-        group = KeyChainGroup.fromProtobufUnencrypted(MAINNET, group.serializeToProtobuf());
-        assertEquals(Script.ScriptType.P2WPKH, group.getActiveKeyChain().getOutputScriptType());
-        assertEquals("bc1qhcurdec849thpjjp3e27atvya43gy2snrechd9",
-                group.currentAddress(KeyPurpose.RECEIVE_FUNDS).toString());
-        assertEquals("bc1qw8sf3mwuwn74qnhj83gjg0cwkk78fun2pxl9t2", group.currentAddress(KeyPurpose.CHANGE).toString());
-
-        // encryption
-        group.encrypt(KEY_CRYPTER, AES_KEY);
-        assertEquals(Script.ScriptType.P2WPKH, group.getActiveKeyChain().getOutputScriptType());
-        assertEquals("bc1qhcurdec849thpjjp3e27atvya43gy2snrechd9",
-                group.currentAddress(KeyPurpose.RECEIVE_FUNDS).toString());
-        assertEquals("bc1qw8sf3mwuwn74qnhj83gjg0cwkk78fun2pxl9t2", group.currentAddress(KeyPurpose.CHANGE).toString());
-
-        // round-trip encrypted again, then dectypt
-        group = KeyChainGroup.fromProtobufEncrypted(MAINNET, group.serializeToProtobuf(), KEY_CRYPTER);
-        group.decrypt(AES_KEY);
-        assertEquals(Script.ScriptType.P2WPKH, group.getActiveKeyChain().getOutputScriptType());
-        assertEquals("bc1qhcurdec849thpjjp3e27atvya43gy2snrechd9",
-                group.currentAddress(KeyPurpose.RECEIVE_FUNDS).toString());
-        assertEquals("bc1qw8sf3mwuwn74qnhj83gjg0cwkk78fun2pxl9t2", group.currentAddress(KeyPurpose.CHANGE).toString());
     }
 
     @Test

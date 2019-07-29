@@ -30,8 +30,6 @@ public interface KeyChainGroupStructure {
         public HDPath accountPathFor(Script.ScriptType outputScriptType) {
             if (outputScriptType == null || outputScriptType == Script.ScriptType.P2PKH)
                 return DeterministicKeyChain.ACCOUNT_ZERO_PATH;
-            else if (outputScriptType == Script.ScriptType.P2WPKH)
-                return DeterministicKeyChain.ACCOUNT_ONE_PATH;
             else
                 throw new IllegalArgumentException(outputScriptType.toString());
         }

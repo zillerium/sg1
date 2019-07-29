@@ -42,10 +42,17 @@ public class ScriptChunk {
      */
     @Nullable
     public final byte[] data;
+    private int startLocationInProgram;
 
     public ScriptChunk(int opcode, @Nullable byte[] data) {
         this.opcode = opcode;
         this.data = data;
+    }
+
+    public ScriptChunk(int opcode, byte[] data, int startLocationInProgram) {
+        this.opcode = opcode;
+        this.data = data;
+        this.startLocationInProgram = startLocationInProgram;
     }
 
     public boolean equalsOpCode(int opcode) {
@@ -69,6 +76,11 @@ public class ScriptChunk {
     /** If this chunk is an OP_N opcode returns the equivalent integer value. */
     public int decodeOpN() {
         return Script.decodeFromOpN(opcode);
+    }
+
+    public int getStartLocationInProgram() {
+        checkState(startLocationInProgram >= 0);
+        return startLocationInProgram;
     }
 
     /**
@@ -166,11 +178,12 @@ public class ScriptChunk {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ScriptChunk other = (ScriptChunk) o;
-        return opcode == other.opcode && Arrays.equals(data, other.data);
+        return opcode == other.opcode && startLocationInProgram == other.startLocationInProgram
+                && Arrays.equals(data, other.data);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(opcode, Arrays.hashCode(data));
+        return Objects.hash(opcode, startLocationInProgram, Arrays.hashCode(data));
     }
 }

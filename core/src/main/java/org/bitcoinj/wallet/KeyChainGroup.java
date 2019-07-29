@@ -117,16 +117,6 @@ public class KeyChainGroup implements KeyBag {
                         .accountPath(structure.accountPathFor(Script.ScriptType.P2PKH)).build();
                 this.chains.clear();
                 this.chains.add(chain);
-            } else if (outputScriptType == Script.ScriptType.P2WPKH) {
-                DeterministicKeyChain fallbackChain = DeterministicKeyChain.builder().seed(seed)
-                        .outputScriptType(Script.ScriptType.P2PKH)
-                        .accountPath(structure.accountPathFor(Script.ScriptType.P2PKH)).build();
-                DeterministicKeyChain defaultChain = DeterministicKeyChain.builder().seed(seed)
-                        .outputScriptType(Script.ScriptType.P2WPKH)
-                        .accountPath(structure.accountPathFor(Script.ScriptType.P2WPKH)).build();
-                this.chains.clear();
-                this.chains.add(fallbackChain);
-                this.chains.add(defaultChain);
             } else {
                 throw new IllegalArgumentException(outputScriptType.toString());
             }
@@ -318,7 +308,7 @@ public class KeyChainGroup implements KeyBag {
                 currentAddresses.put(purpose, current);
             }
             return current;
-        } else if (outputScriptType == Script.ScriptType.P2PKH || outputScriptType == Script.ScriptType.P2WPKH) {
+        } else if (outputScriptType == Script.ScriptType.P2PKH) {
             return Address.fromKey(params, currentKey(purpose), outputScriptType);
         } else {
             throw new IllegalStateException(chain.getOutputScriptType().toString());
@@ -388,7 +378,7 @@ public class KeyChainGroup implements KeyBag {
             maybeLookaheadScripts();
             currentAddresses.put(purpose, freshAddress);
             return freshAddress;
-        } else if (outputScriptType == Script.ScriptType.P2PKH || outputScriptType == Script.ScriptType.P2WPKH) {
+        } else if (outputScriptType == Script.ScriptType.P2PKH) {
             return Address.fromKey(params, freshKey(purpose), outputScriptType);
         } else {
             throw new IllegalStateException(chain.getOutputScriptType().toString());
@@ -977,24 +967,6 @@ public class KeyChainGroup implements KeyBag {
             addAndActivateHDChain(chain);
         }
 
-        // P2PKH --> P2WPKH upgrade
-        if (preferredScriptType == Script.ScriptType.P2WPKH
-                && getActiveKeyChain(Script.ScriptType.P2WPKH, keyRotationTimeSecs) == null) {
-            DeterministicSeed seed = getActiveKeyChain(Script.ScriptType.P2PKH, keyRotationTimeSecs).getSeed();
-            boolean seedWasEncrypted = seed.isEncrypted();
-            if (seedWasEncrypted) {
-                if (aesKey == null)
-                    throw new DeterministicUpgradeRequiresPassword();
-                seed = seed.decrypt(keyCrypter, "", aesKey);
-            }
-            log.info("Upgrading from P2PKH to P2WPKH deterministic keychain. Using seed: {}", seed);
-            DeterministicKeyChain chain = DeterministicKeyChain.builder().seed(seed)
-                    .outputScriptType(Script.ScriptType.P2WPKH)
-                    .accountPath(structure.accountPathFor(Script.ScriptType.P2WPKH)).build();
-            if (seedWasEncrypted)
-                chain = chain.toEncrypted(checkNotNull(keyCrypter), aesKey);
-            addAndActivateHDChain(chain);
-        }
     }
 
     /**

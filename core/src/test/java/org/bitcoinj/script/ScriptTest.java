@@ -2,6 +2,7 @@
  * Copyright 2011 Google Inc.
  * Copyright 2014 Andreas Schildbach
  * Copyright 2017 Thomas König
+ * Copyright 2018 the bitcoinj-cash developers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,6 +15,9 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * This file has been modified by the bitcoinj-cash developers for the bitcoinj-cash project.
+ * The original file was from the bitcoinj project (https://github.com/bitcoinj/bitcoinj).
  */
 
 package org.bitcoinj.script;
@@ -26,6 +30,7 @@ import org.bitcoinj.crypto.TransactionSignature;
 import org.bitcoinj.params.MainNetParams;
 import org.bitcoinj.params.TestNet3Params;
 import org.bitcoinj.script.Script.VerifyFlag;
+import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
@@ -38,12 +43,14 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.math.BigInteger;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 import static org.bitcoinj.core.Utils.HEX;
+import static org.bitcoinj.core.Utils.toByteArray;
+import static org.bitcoinj.script.Script.MAX_SCRIPT_ELEMENT_SIZE;
+import static org.bitcoinj.script.ScriptHelpers.parseScriptString;
+import static org.bitcoinj.script.ScriptHelpers.parseVerifyFlags;
 import static org.bitcoinj.script.ScriptOpCodes.OP_0;
-import static org.bitcoinj.script.ScriptOpCodes.OP_INVALIDOPCODE;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.junit.Assert.*;
 import org.junit.Before;
@@ -51,27 +58,27 @@ import org.junit.Before;
 public class ScriptTest {
     // From tx 05e04c26c12fe408a3c1b71aa7996403f6acad1045252b1c62e055496f4d2cb1 on the testnet.
 
-    private static final String sigProg = "47304402202b4da291cc39faf8433911988f9f49fc5c995812ca2f94db61468839c228c3e90220628bff3ff32ec95825092fa051cba28558a981fcf59ce184b14f2e215e69106701410414b38f4be3bb9fa0f4f32b74af07152b2f2f630bc02122a491137b6c523e46f18a0d5034418966f93dfc37cc3739ef7b2007213a302b7fba161557f4ad644a1c";
+    static final String sigProg = "47304402202b4da291cc39faf8433911988f9f49fc5c995812ca2f94db61468839c228c3e90220628bff3ff32ec95825092fa051cba28558a981fcf59ce184b14f2e215e69106701410414b38f4be3bb9fa0f4f32b74af07152b2f2f630bc02122a491137b6c523e46f18a0d5034418966f93dfc37cc3739ef7b2007213a302b7fba161557f4ad644a1c";
 
-    private static final String pubkeyProg = "76a91433e81a941e64cda12c6a299ed322ddbdd03f8d0e88ac";
+    static final String pubkeyProg = "76a91433e81a941e64cda12c6a299ed322ddbdd03f8d0e88ac";
 
-    private static final NetworkParameters TESTNET = TestNet3Params.get();
-    private static final NetworkParameters MAINNET = MainNetParams.get();
+    private static final NetworkParameters PARAMS = TestNet3Params.get();
 
     private static final Logger log = LoggerFactory.getLogger(ScriptTest.class);
 
     @Before
     public void setUp() throws Exception {
-        Context context = new Context(TESTNET);
+        Context context = new Context(PARAMS);
     }
 
     @Test
     public void testScriptSig() throws Exception {
         byte[] sigProgBytes = HEX.decode(sigProg);
         Script script = new Script(sigProgBytes);
-        assertEquals(
-                "PUSHDATA(71)[304402202b4da291cc39faf8433911988f9f49fc5c995812ca2f94db61468839c228c3e90220628bff3ff32ec95825092fa051cba28558a981fcf59ce184b14f2e215e69106701] PUSHDATA(65)[0414b38f4be3bb9fa0f4f32b74af07152b2f2f630bc02122a491137b6c523e46f18a0d5034418966f93dfc37cc3739ef7b2007213a302b7fba161557f4ad644a1c]",
-                script.toString());
+        // Test we can extract the from address.
+        byte[] hash160 = Utils.sha256hash160(script.getPubKey());
+        Address a = LegacyAddress.fromPubKeyHash(PARAMS, hash160);
+        assertEquals("mkFQohBpy2HDXrCwyMrYL5RtfrmeiuuPY2", a.toString());
     }
 
     @Test
@@ -80,17 +87,17 @@ public class ScriptTest {
         byte[] pubkeyBytes = HEX.decode(pubkeyProg);
         Script pubkey = new Script(pubkeyBytes);
         assertEquals("DUP HASH160 PUSHDATA(20)[33e81a941e64cda12c6a299ed322ddbdd03f8d0e] EQUALVERIFY CHECKSIG", pubkey.toString());
-        Address toAddr = LegacyAddress.fromPubKeyHash(TESTNET, ScriptPattern.extractHashFromP2PKH(pubkey));
+        Address toAddr = LegacyAddress.fromPubKeyHash(PARAMS, ScriptPattern.extractHashFromP2PKH(pubkey));
         assertEquals("mkFQohBpy2HDXrCwyMrYL5RtfrmeiuuPY2", toAddr.toString());
     }
 
     @Test
     public void testMultiSig() throws Exception {
         List<ECKey> keys = Lists.newArrayList(new ECKey(), new ECKey(), new ECKey());
-        assertTrue(ScriptPattern.isSentToMultisig(ScriptBuilder.createMultiSigOutputScript(2, keys)));
+        assertTrue(ScriptBuilder.createMultiSigOutputScript(2, keys).isSentToMultiSig());
         Script script = ScriptBuilder.createMultiSigOutputScript(3, keys);
-        assertTrue(ScriptPattern.isSentToMultisig(script));
-        List<ECKey> pubkeys = new ArrayList<>(3);
+        assertTrue(script.isSentToMultiSig());
+        List<ECKey> pubkeys = new ArrayList<ECKey>(3);
         for (ECKey key : keys) pubkeys.add(ECKey.fromPublicOnly(key.getPubKeyPoint()));
         assertEquals(script.getPubKeys(), pubkeys);
         assertFalse(ScriptPattern.isSentToMultisig(ScriptBuilder.createP2PKOutputScript(new ECKey())));
@@ -112,29 +119,29 @@ public class ScriptTest {
 
     @Test
     public void testP2SHOutputScript() throws Exception {
-        Address p2shAddress = LegacyAddress.fromBase58(MAINNET, "35b9vsyH1KoFT5a5KtrKusaCcPLkiSo1tU");
-        assertTrue(ScriptPattern.isP2SH(ScriptBuilder.createOutputScript(p2shAddress)));
+        Address p2shAddress = LegacyAddress.fromBase58(MainNetParams.get(), "35b9vsyH1KoFT5a5KtrKusaCcPLkiSo1tU");
+        assertTrue(ScriptBuilder.createOutputScript(p2shAddress).isPayToScriptHash());
     }
 
     @Test
     public void testIp() throws Exception {
         byte[] bytes = HEX.decode("41043e96222332ea7848323c08116dddafbfa917b8e37f0bdf63841628267148588a09a43540942d58d49717ad3fabfe14978cf4f0a8b84d2435dad16e9aa4d7f935ac");
         Script s = new Script(bytes);
-        assertTrue(ScriptPattern.isP2PK(s));
+        assertTrue(s.isSentToRawPubKey());
     }
-    
+
     @Test
     public void testCreateMultiSigInputScript() {
         // Setup transaction and signatures
-        ECKey key1 = DumpedPrivateKey.fromBase58(TESTNET, "cVLwRLTvz3BxDAWkvS3yzT9pUcTCup7kQnfT2smRjvmmm1wAP6QT").getKey();
-        ECKey key2 = DumpedPrivateKey.fromBase58(TESTNET, "cTine92s8GLpVqvebi8rYce3FrUYq78ZGQffBYCS1HmDPJdSTxUo").getKey();
-        ECKey key3 = DumpedPrivateKey.fromBase58(TESTNET, "cVHwXSPRZmL9adctwBwmn4oTZdZMbaCsR5XF6VznqMgcvt1FDDxg").getKey();
+        ECKey key1 = DumpedPrivateKey.fromBase58(PARAMS, "cVLwRLTvz3BxDAWkvS3yzT9pUcTCup7kQnfT2smRjvmmm1wAP6QT").getKey();
+        ECKey key2 = DumpedPrivateKey.fromBase58(PARAMS, "cTine92s8GLpVqvebi8rYce3FrUYq78ZGQffBYCS1HmDPJdSTxUo").getKey();
+        ECKey key3 = DumpedPrivateKey.fromBase58(PARAMS, "cVHwXSPRZmL9adctwBwmn4oTZdZMbaCsR5XF6VznqMgcvt1FDDxg").getKey();
         Script multisigScript = ScriptBuilder.createMultiSigOutputScript(2, Arrays.asList(key1, key2, key3));
         byte[] bytes = HEX.decode("01000000013df681ff83b43b6585fa32dd0e12b0b502e6481e04ee52ff0fdaf55a16a4ef61000000006b483045022100a84acca7906c13c5895a1314c165d33621cdcf8696145080895cbf301119b7cf0220730ff511106aa0e0a8570ff00ee57d7a6f24e30f592a10cae1deffac9e13b990012102b8d567bcd6328fd48a429f9cf4b315b859a58fd28c5088ef3cb1d98125fc4e8dffffffff02364f1c00000000001976a91439a02793b418de8ec748dd75382656453dc99bcb88ac40420f000000000017a9145780b80be32e117f675d6e0ada13ba799bf248e98700000000");
-        Transaction transaction = TESTNET.getDefaultSerializer().makeTransaction(bytes);
+        Transaction transaction = PARAMS.getDefaultSerializer().makeTransaction(bytes);
         TransactionOutput output = transaction.getOutput(1);
-        Transaction spendTx = new Transaction(TESTNET);
-        Address address = LegacyAddress.fromBase58(TESTNET, "n3CFiCmBXVt5d3HXKQ15EFZyhPz4yj5F3H");
+        Transaction spendTx = new Transaction(PARAMS);
+        Address address = LegacyAddress.fromBase58(PARAMS, "n3CFiCmBXVt5d3HXKQ15EFZyhPz4yj5F3H");
         Script outputScript = ScriptBuilder.createOutputScript(address);
         spendTx.addOutput(output.getValue(), outputScript);
         spendTx.addInput(output);
@@ -172,20 +179,20 @@ public class ScriptTest {
         TransactionSignature dummySig = TransactionSignature.dummy();
         ECKey key = new ECKey();
 
-        // P2PK
+        // pay-to-pubkey
         Script inputScript = ScriptBuilder.createInputScript(dummySig);
         assertThat(inputScript.getChunks().get(0).data, equalTo(dummySig.encodeToBitcoin()));
         inputScript = ScriptBuilder.createInputScript(null);
         assertThat(inputScript.getChunks().get(0).opcode, equalTo(OP_0));
 
-        // P2PKH
+        // pay-to-address
         inputScript = ScriptBuilder.createInputScript(dummySig, key);
         assertThat(inputScript.getChunks().get(0).data, equalTo(dummySig.encodeToBitcoin()));
         inputScript = ScriptBuilder.createInputScript(null, key);
         assertThat(inputScript.getChunks().get(0).opcode, equalTo(OP_0));
         assertThat(inputScript.getChunks().get(1).data, equalTo(key.getPubKey()));
 
-        // P2SH
+        // pay-to-script-hash
         ECKey key2 = new ECKey();
         Script multisigScript = ScriptBuilder.createMultiSigOutputScript(2, Arrays.asList(key, key2));
         inputScript = ScriptBuilder.createP2SHMultiSigInputScript(Arrays.asList(dummySig, dummySig), multisigScript);
@@ -224,148 +231,76 @@ public class ScriptTest {
     @Test
     public void testOp0() {
         // Check that OP_0 doesn't NPE and pushes an empty stack frame.
-        Transaction tx = new Transaction(TESTNET);
-        tx.addInput(new TransactionInput(TESTNET, tx, new byte[] {}));
+        Transaction tx = new Transaction(PARAMS);
+        tx.addInput(new TransactionInput(PARAMS, tx, new byte[] {}));
         Script script = new ScriptBuilder().smallNum(0).build();
 
-        LinkedList<byte[]> stack = new LinkedList<>();
+        LinkedList<byte[]> stack = new LinkedList<byte[]>();
         Script.executeScript(tx, 0, script, stack, Coin.ZERO, Script.ALL_VERIFY_FLAGS);
         assertEquals("OP_0 push length", 0, stack.get(0).length);
     }
 
-    private Script parseScriptString(String string) throws IOException {
-        String[] words = string.split("[ \\t\\n]");
-        
-        UnsafeByteArrayOutputStream out = new UnsafeByteArrayOutputStream();
 
-        for(String w : words) {
-            if (w.equals(""))
-                continue;
-            if (w.matches("^-?[0-9]*$")) {
-                // Number
-                long val = Long.parseLong(w);
-                if (val >= -1 && val <= 16)
-                    out.write(Script.encodeToOpN((int)val));
-                else
-                    Script.writeBytes(out, Utils.reverseBytes(Utils.encodeMPI(BigInteger.valueOf(val), false)));
-            } else if (w.matches("^0x[0-9a-fA-F]*$")) {
-                // Raw hex data, inserted NOT pushed onto stack:
-                out.write(HEX.decode(w.substring(2).toLowerCase()));
-            } else if (w.length() >= 2 && w.startsWith("'") && w.endsWith("'")) {
-                // Single-quoted string, pushed as data. NOTE: this is poor-man's
-                // parsing, spaces/tabs/newlines in single-quoted strings won't work.
-                Script.writeBytes(out, w.substring(1, w.length() - 1).getBytes(StandardCharsets.UTF_8));
-            } else if (ScriptOpCodes.getOpCode(w) != OP_INVALIDOPCODE) {
-                // opcode, e.g. OP_ADD or OP_1:
-                out.write(ScriptOpCodes.getOpCode(w));
-            } else if (w.startsWith("OP_") && ScriptOpCodes.getOpCode(w.substring(3)) != OP_INVALIDOPCODE) {
-                // opcode, e.g. OP_ADD or OP_1:
-                out.write(ScriptOpCodes.getOpCode(w.substring(3)));
-            } else {
-                throw new RuntimeException("Invalid word: '" + w + "'");
-            }                        
-        }
-        
-        return new Script(out.toByteArray());
-    }
-
-    private Set<VerifyFlag> parseVerifyFlags(String str) {
-        Set<VerifyFlag> flags = EnumSet.noneOf(VerifyFlag.class);
-        if (!"NONE".equals(str)) {
-            for (String flag : str.split(",")) {
-                try {
-                    flags.add(VerifyFlag.valueOf(flag));
-                } catch (IllegalArgumentException x) {
-                    log.debug("Cannot handle verify flag {} -- ignored.", flag);
-                }
+    @Test
+    public void dataDrivenValidScripts() throws Exception {
+        JsonNode json = new ObjectMapper().readTree(new InputStreamReader(getClass().getResourceAsStream(
+                "script_valid.json"), Charsets.UTF_8));
+        for (JsonNode test : json) {
+            Script scriptSig = parseScriptString(test.get(0).asText());
+            Script scriptPubKey = parseScriptString(test.get(1).asText());
+            Set<VerifyFlag> verifyFlags = parseVerifyFlags(test.get(2).asText());
+            try {
+                scriptSig.correctlySpends(new Transaction(PARAMS), 0, Coin.ZERO, scriptPubKey, verifyFlags);
+            } catch (ScriptException e) {
+                System.err.println(test);
+                System.err.flush();
+                throw e;
             }
         }
-        return flags;
     }
 
     @Test
-    public void dataDrivenScripts() throws Exception {
-        JsonNode json = new ObjectMapper()
-                .readTree(new InputStreamReader(getClass().getResourceAsStream("script_tests.json"), StandardCharsets.UTF_8));
+    public void dataDrivenInvalidScripts() throws Exception {
+        JsonNode json = new ObjectMapper().readTree(new InputStreamReader(getClass().getResourceAsStream(
+                "script_invalid.json"), Charsets.UTF_8));
         for (JsonNode test : json) {
-            if (test.size() == 1)
-                continue; // skip comment
-            Set<VerifyFlag> verifyFlags = parseVerifyFlags(test.get(2).asText());
-            ScriptError expectedError = ScriptError.fromMnemonic(test.get(3).asText());
             try {
                 Script scriptSig = parseScriptString(test.get(0).asText());
                 Script scriptPubKey = parseScriptString(test.get(1).asText());
-                Transaction txCredit = buildCreditingTransaction(scriptPubKey);
-                Transaction txSpend = buildSpendingTransaction(txCredit, scriptSig);
-                scriptSig.correctlySpends(txSpend, 0, scriptPubKey, Coin.ZERO, verifyFlags);
-                if (!expectedError.equals(ScriptError.SCRIPT_ERR_OK))
-                    fail(test + " is expected to fail");
-            } catch (ScriptException e) {
-                if (!e.getError().equals(expectedError)) {
-                    System.err.println(test);
-                    e.printStackTrace();
-                    System.err.flush();
-                    throw e;
-                }
+                Set<VerifyFlag> verifyFlags = parseVerifyFlags(test.get(2).asText());
+                scriptSig.correctlySpends(new Transaction(PARAMS), 0, Coin.ZERO, scriptPubKey, verifyFlags);
+                System.err.println(test);
+                System.err.flush();
+                fail();
+            } catch (VerificationException e) {
+                // Expected.
             }
         }
     }
 
     private Map<TransactionOutPoint, Script> parseScriptPubKeys(JsonNode inputs) throws IOException {
-        Map<TransactionOutPoint, Script> scriptPubKeys = new HashMap<>();
+        Map<TransactionOutPoint, Script> scriptPubKeys = new HashMap<TransactionOutPoint, Script>();
         for (JsonNode input : inputs) {
             String hash = input.get(0).asText();
             int index = input.get(1).asInt();
             String script = input.get(2).asText();
             Sha256Hash sha256Hash = Sha256Hash.wrap(HEX.decode(hash));
-            scriptPubKeys.put(new TransactionOutPoint(TESTNET, index, sha256Hash), parseScriptString(script));
+            scriptPubKeys.put(new TransactionOutPoint(PARAMS, index, sha256Hash), parseScriptString(script));
         }
         return scriptPubKeys;
-    }
-
-    private Transaction buildCreditingTransaction(Script scriptPubKey) {
-        Transaction tx = new Transaction(TESTNET);
-        tx.setVersion(1);
-        tx.setLockTime(0);
-
-        TransactionInput txInput = new TransactionInput(TESTNET, null,
-                new ScriptBuilder().number(0).number(0).build().getProgram());
-        txInput.setSequenceNumber(TransactionInput.NO_SEQUENCE);
-        tx.addInput(txInput);
-
-        TransactionOutput txOutput = new TransactionOutput(TESTNET, tx, Coin.ZERO, scriptPubKey.getProgram());
-        tx.addOutput(txOutput);
-
-        return tx;
-    }
-
-    private Transaction buildSpendingTransaction(Transaction creditingTransaction, Script scriptSig) {
-        Transaction tx = new Transaction(TESTNET);
-        tx.setVersion(1);
-        tx.setLockTime(0);
-
-        TransactionInput txInput = new TransactionInput(TESTNET, creditingTransaction, scriptSig.getProgram());
-        txInput.setSequenceNumber(TransactionInput.NO_SEQUENCE);
-        tx.addInput(txInput);
-
-        TransactionOutput txOutput = new TransactionOutput(TESTNET, tx, creditingTransaction.getOutput(0).getValue(),
-                new Script(new byte[] {}).getProgram());
-        tx.addOutput(txOutput);
-
-        return tx;
     }
 
     @Test
     public void dataDrivenValidTransactions() throws Exception {
         JsonNode json = new ObjectMapper().readTree(new InputStreamReader(getClass().getResourceAsStream(
-                "tx_valid.json"), StandardCharsets.UTF_8));
+                "tx_valid.json"), Charsets.UTF_8));
         for (JsonNode test : json) {
             if (test.isArray() && test.size() == 1 && test.get(0).isTextual())
                 continue; // This is a comment.
             Transaction transaction = null;
             try {
                 Map<TransactionOutPoint, Script> scriptPubKeys = parseScriptPubKeys(test.get(0));
-                transaction = TESTNET.getDefaultSerializer().makeTransaction(HEX.decode(test.get(1).asText().toLowerCase()));
+                transaction = PARAMS.getDefaultSerializer().makeTransaction(HEX.decode(test.get(1).asText().toLowerCase()));
                 transaction.verify();
                 Set<VerifyFlag> verifyFlags = parseVerifyFlags(test.get(2).asText());
 
@@ -374,8 +309,8 @@ public class ScriptTest {
                     if (input.getOutpoint().getIndex() == 0xffffffffL)
                         input.getOutpoint().setIndex(-1);
                     assertTrue(scriptPubKeys.containsKey(input.getOutpoint()));
-                    input.getScriptSig().correctlySpends(transaction, i, scriptPubKeys.get(input.getOutpoint()),
-                            input.getValue(), verifyFlags);
+                    input.getScriptSig().correctlySpends(transaction, i, input.getConnectedOutput().getValue(),
+                            scriptPubKeys.get(input.getOutpoint()), verifyFlags);
                 }
             } catch (Exception e) {
                 System.err.println(test);
@@ -389,12 +324,12 @@ public class ScriptTest {
     @Test
     public void dataDrivenInvalidTransactions() throws Exception {
         JsonNode json = new ObjectMapper().readTree(new InputStreamReader(getClass().getResourceAsStream(
-                "tx_invalid.json"), StandardCharsets.UTF_8));
+                "tx_invalid.json"), Charsets.UTF_8));
         for (JsonNode test : json) {
             if (test.isArray() && test.size() == 1 && test.get(0).isTextual())
                 continue; // This is a comment.
             Map<TransactionOutPoint, Script> scriptPubKeys = parseScriptPubKeys(test.get(0));
-            Transaction transaction = TESTNET.getDefaultSerializer().makeTransaction(HEX.decode(test.get(1).asText().toLowerCase()));
+            Transaction transaction = PARAMS.getDefaultSerializer().makeTransaction(HEX.decode(test.get(1).asText().toLowerCase()));
             Set<VerifyFlag> verifyFlags = parseVerifyFlags(test.get(2).asText());
 
             boolean valid = true;
@@ -406,7 +341,7 @@ public class ScriptTest {
 
             // Bitcoin Core checks this case in CheckTransaction, but we leave it to
             // later where we will see an attempt to double-spend, so we explicitly check here
-            HashSet<TransactionOutPoint> set = new HashSet<>();
+            HashSet<TransactionOutPoint> set = new HashSet<TransactionOutPoint>();
             for (TransactionInput input : transaction.getInputs()) {
                 if (set.contains(input.getOutpoint()))
                     valid = false;
@@ -417,8 +352,8 @@ public class ScriptTest {
                 TransactionInput input = transaction.getInputs().get(i);
                 assertTrue(scriptPubKeys.containsKey(input.getOutpoint()));
                 try {
-                    input.getScriptSig().correctlySpends(transaction, i, scriptPubKeys.get(input.getOutpoint()),
-                            input.getValue(), verifyFlags);
+                    input.getScriptSig().correctlySpends(transaction, i, input.getConnectedOutput().getValue(),
+                            scriptPubKeys.get(input.getOutpoint()), verifyFlags);
                 } catch (VerificationException e) {
                     valid = false;
                 }
@@ -432,26 +367,184 @@ public class ScriptTest {
     @Test
     public void testCLTVPaymentChannelOutput() {
         Script script = ScriptBuilder.createCLTVPaymentChannelOutput(BigInteger.valueOf(20), new ECKey(), new ECKey());
-        assertTrue("script is locktime-verify", ScriptPattern.isSentToCltvPaymentChannel(script));
+        assertTrue("script is locktime-verify", script.isSentToCLTVPaymentChannel());
     }
 
     @Test
     public void getToAddress() throws Exception {
         // pay to pubkey
         ECKey toKey = new ECKey();
-        Address toAddress = LegacyAddress.fromKey(TESTNET, toKey);
-        assertEquals(toAddress, ScriptBuilder.createP2PKOutputScript(toKey).getToAddress(TESTNET, true));
+        Address toAddress = LegacyAddress.fromKey(PARAMS, toKey);
+        assertEquals(toAddress, ScriptBuilder.createP2PKOutputScript(toKey).getToAddress(PARAMS, true));
         // pay to pubkey hash
-        assertEquals(toAddress, ScriptBuilder.createOutputScript(toAddress).getToAddress(TESTNET, true));
+        assertEquals(toAddress, ScriptBuilder.createOutputScript(toAddress).getToAddress(PARAMS, true));
         // pay to script hash
         Script p2shScript = ScriptBuilder.createP2SHOutputScript(new byte[20]);
-        Address scriptAddress = LegacyAddress.fromScriptHash(TESTNET,
-                ScriptPattern.extractHashFromP2SH(p2shScript));
-        assertEquals(scriptAddress, p2shScript.getToAddress(TESTNET, true));
+        Address scriptAddress = LegacyAddress.fromScriptHash(PARAMS, ScriptPattern.extractHashFromP2SH(p2shScript));
+        assertEquals(scriptAddress, p2shScript.getToAddress(PARAMS, true));
     }
 
     @Test(expected = ScriptException.class)
     public void getToAddressNoPubKey() throws Exception {
-        ScriptBuilder.createP2PKOutputScript(new ECKey()).getToAddress(TESTNET, false);
+        ScriptBuilder.createP2PKOutputScript(new ECKey()).getToAddress(PARAMS, false);
     }
+
+    /** Test encoding of zero, which should result in an opcode */
+    @Test
+    public void numberBuilderZero() {
+        final ScriptBuilder builder = new ScriptBuilder();
+
+        // 0 should encode directly to 0
+        builder.number(0);
+        assertArrayEquals(new byte[] {
+            0x00         // Pushed data
+        }, builder.build().getProgram());
+    }
+
+    @Test
+    public void numberBuilderPositiveOpCode() {
+        final ScriptBuilder builder = new ScriptBuilder();
+
+        builder.number(5);
+        assertArrayEquals(new byte[] {
+            0x55         // Pushed data
+        }, builder.build().getProgram());
+    }
+
+    @Test
+    public void numberBuilderBigNum() {
+        ScriptBuilder builder = new ScriptBuilder();
+        // 21066 should take up three bytes including the length byte
+        // at the start
+
+        builder.number(0x524a);
+        assertArrayEquals(new byte[] {
+            0x02,             // Length of the pushed data
+            0x4a, 0x52        // Pushed data
+        }, builder.build().getProgram());
+
+        // Test the trimming code ignores zeroes in the middle
+        builder = new ScriptBuilder();
+        builder.number(0x110011);
+        assertEquals(4, builder.build().getProgram().length);
+
+        // Check encoding of a value where signed/unsigned encoding differs
+        // because the most significant byte is 0x80, and therefore a
+        // sign byte has to be added to the end for the signed encoding.
+        builder = new ScriptBuilder();
+        builder.number(0x8000);
+        assertArrayEquals(new byte[] {
+            0x03,             // Length of the pushed data
+            0x00, (byte) 0x80, 0x00  // Pushed data
+        }, builder.build().getProgram());
+    }
+
+    @Test
+    public void numberBuilderNegative() {
+        // Check encoding of a negative value
+        final ScriptBuilder builder = new ScriptBuilder();
+        builder.number(-5);
+        assertArrayEquals(new byte[] {
+            0x01,        // Length of the pushed data
+            ((byte) 133) // Pushed data
+        }, builder.build().getProgram());
+    }
+
+    @Test
+    public void numberBuilder16() {
+        ScriptBuilder builder = new ScriptBuilder();
+        // Numbers greater than 16 must be encoded with PUSHDATA
+        builder.number(15).number(16).number(17);
+        builder.number(0, 17).number(1, 16).number(2, 15);
+        Script script = builder.build();
+        assertEquals("PUSHDATA(1)[11] 16 15 15 16 PUSHDATA(1)[11]", script.toString());
+    }
+
+    /** Bitwise ops **/
+
+    static final int MAX_BITWISE_RANDOM_TESTS = 2000;
+
+    /** Number encoding **/
+
+    public void checkMinimallyEncoded(byte[] data, byte[] expected) {
+        boolean alreadyEncoded = Utils.checkMinimallyEncodedLE(data, data.length);
+        byte[] encoded = Utils.minimallyEncodeLE(data);
+        boolean hasEncoded = data.length != encoded.length;
+        assertEquals(hasEncoded, !alreadyEncoded);
+        assertArrayEquals(encoded, expected);
+    }
+
+    @Test
+    public void minimizeEncodingTest() {
+        checkMinimallyEncoded(new byte[0], new byte[0]);
+
+        try {
+
+            UnsafeByteArrayOutputStream zero = new UnsafeByteArrayOutputStream();
+            UnsafeByteArrayOutputStream negZero = new UnsafeByteArrayOutputStream();
+            for (int i = 0; i < Script.MAX_SCRIPT_ELEMENT_SIZE; i++) {
+
+                zero.write(0x00);
+                checkMinimallyEncoded(zero.toByteArray(), new byte[0]);
+
+                negZero.write(0x80);
+                checkMinimallyEncoded(negZero.toByteArray(), new byte[0]);
+
+                //reset negZero for next round
+                int len = negZero.size();
+                negZero.reset();
+                negZero.write(new byte[len]);
+
+            }
+
+            // Keep one leading zero when sign bit is used.
+            byte[] n = new byte[]{(byte) 0x80, (byte) 0x00};
+            byte[] negn = new byte[]{(byte) 0x80, (byte) 0x80};
+            UnsafeByteArrayOutputStream nPadded = new UnsafeByteArrayOutputStream();
+            nPadded.write(n);
+            UnsafeByteArrayOutputStream negnPadded = new UnsafeByteArrayOutputStream();
+            negnPadded.write(negn);
+
+            for (int i = 0; i < Script.MAX_SCRIPT_ELEMENT_SIZE; i++) {
+                checkMinimallyEncoded(nPadded.toByteArray(), n);
+                nPadded.write(0x00);
+
+                byte[] negnPaddedBytes = negnPadded.toByteArray();
+                checkMinimallyEncoded(negnPaddedBytes, negn);
+
+                //reset to move the 0x80 one to the right
+                negnPadded.reset();
+                negnPadded.write(negnPaddedBytes, 0, negnPaddedBytes.length - 1);
+                negnPadded.write(0x00);
+                negnPadded.write(0x80);
+            }
+
+            // Merge leading byte when sign bit isn't used
+            byte[] k = new byte[]{(byte) 0x7f};
+            byte[] negk = new byte[]{(byte) 0xff};
+            UnsafeByteArrayOutputStream kPadded = new UnsafeByteArrayOutputStream();
+            kPadded.write(k);
+            UnsafeByteArrayOutputStream negkPadded = new UnsafeByteArrayOutputStream();
+            negkPadded.write(negk);
+
+            for (int i = 0; i < Script.MAX_SCRIPT_ELEMENT_SIZE; i++) {
+                checkMinimallyEncoded(kPadded.toByteArray(), k);
+                kPadded.write(0x00);
+
+                byte[] negkPaddedBytes = negkPadded.toByteArray();
+                checkMinimallyEncoded(negkPaddedBytes, negk);
+
+                int last = negkPaddedBytes[negkPaddedBytes.length - 1] & 0x7f;
+                negkPadded.reset();
+                negkPadded.write(negkPaddedBytes, 0, negkPaddedBytes.length - 1);
+                negkPadded.write(last);
+                negkPadded.write(0x80);
+            }
+
+        } catch (IOException e) {
+            //catching UnsafeByteArrayOutputStream.write() should never happen
+            throw new RuntimeException(e);
+        }
+    }
+
 }

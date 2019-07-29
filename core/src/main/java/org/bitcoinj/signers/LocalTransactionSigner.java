@@ -81,7 +81,7 @@ public class LocalTransactionSigner implements TransactionSigner {
                 // We assume if its already signed, its hopefully got a SIGHASH type that will not invalidate when
                 // we sign missing pieces (to check this would require either assuming any signatures are signing
                 // standard output types or a way to get processed signatures out of script execution)
-                txIn.getScriptSig().correctlySpends(tx, i, scriptPubKey, connectedOutput.getValue(), MINIMUM_VERIFY_FLAGS);
+                txIn.getScriptSig().correctlySpends(tx, i, connectedOutput.getValue(), scriptPubKey, MINIMUM_VERIFY_FLAGS);
                 log.warn("Input {} already correctly spends output, assuming SIGHASH type used will be safe and skipping signing.", i);
                 continue;
             } catch (ScriptException e) {
@@ -114,7 +114,7 @@ public class LocalTransactionSigner implements TransactionSigner {
                 if (ScriptPattern.isP2PK(scriptPubKey) || ScriptPattern.isP2PKH(scriptPubKey)
                         || ScriptPattern.isP2SH(scriptPubKey)) {
                     TransactionSignature signature = tx.calculateWitnessSignature(i, key, script,
-                            connectedOutput.getValue(), Transaction.SigHash.ALL, false);
+                            connectedOutput.getValue(), Transaction.SigHash.ALL, false, null);
 
                     // at this point we have incomplete inputScript with OP_0 in place of one or more signatures. We
                     // already have calculated the signature using the local key and now need to insert it in the

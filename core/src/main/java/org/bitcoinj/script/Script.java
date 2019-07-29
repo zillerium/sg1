@@ -68,7 +68,7 @@ public class Script {
         }
     }
 
-    /** Flags to pass to {@link Script#correctlySpends(Transaction, long, Script, Coin, Set)}.
+    /**
      * Note currently only P2SH, DERSIG and NULLDUMMY are actually supported.
      */
     public enum VerifyFlag {
@@ -81,9 +81,9 @@ public class Script {
         MINIMALDATA, // Require minimal encodings for all push operations
         DISCOURAGE_UPGRADABLE_NOPS, // Discourage use of NOPs reserved for upgrades (NOP1-10)
         CLEANSTACK, // Require that only a single stack element remains after evaluation.
-        CHECKLOCKTIMEVERIFY, // Enable CHECKLOCKTIMEVERIFY operation
         SIGHASH_FORKID,
         REPLAY_PROTECTION,
+        CHECKLOCKTIMEVERIFY, // Enable CHECKLOCKTIMEVERIFY operation
         CHECKSEQUENCEVERIFY // Enable CHECKSEQUENCEVERIFY operation
     }
     public static final EnumSet<VerifyFlag> ALL_VERIFY_FLAGS = EnumSet.complementOf(EnumSet.of(VerifyFlag.REPLAY_PROTECTION));
@@ -755,27 +755,12 @@ public class Script {
 
     /**
      * Exposes the script interpreter. Normally you should not use this directly, instead use
-     * {@link TransactionInput#verify(TransactionOutput)}
-     *
-     * @deprecated Use {@link #executeScript(Transaction, long, Script, LinkedList, Coin, Set)}
-     * instead.
+     * {@link TransactionInput#verify(TransactionOutput)}. This method
+     * is useful if you need more precise control or access to the final state of the stack. This interface is very
+     * likely to change in future.
      */
-    @Deprecated
-    public static void executeScript(@Nullable Transaction txContainingThis, long index,
-                                     Script script, LinkedList<byte[]> stack, Coin value, boolean enforceNullDummy) throws ScriptException {
-        final EnumSet<VerifyFlag> flags = enforceNullDummy
-            ? EnumSet.of(VerifyFlag.NULLDUMMY)
-            : EnumSet.noneOf(VerifyFlag.class);
-
-        executeScript(txContainingThis, index, script, stack, value, flags);
-    }
-
-    /**
-     * Exposes the script interpreter. Normally you should not use this directly, instead use
-     * {@link TransactionInput#verify(TransactionOutput)}
-     */
-    public static void executeScript(@Nullable Transaction txContainingThis, long index,
-                                     Script script, LinkedList<byte[]> stack, Coin value, Set<VerifyFlag> verifyFlags) throws ScriptException {
+    public static void executeScript(@Nullable Transaction txContainingThis, long index, Script script,
+                                     LinkedList<byte[]> stack, Coin value, Set<VerifyFlag> verifyFlags) throws ScriptException {
         int opCount = 0;
         int lastCodeSepLocation = 0;
         
@@ -800,7 +785,7 @@ public class Script {
             }
 
             // Disabled opcodes.
-            if (opcode == OP_CAT || opcode == OP_SUBSTR || opcode == OP_LEFT || opcode == OP_RIGHT ||
+            if (opcode == OP_CAT ||
                     opcode == OP_INVERT || opcode == OP_AND || opcode == OP_OR || opcode == OP_XOR ||
                     opcode == OP_2MUL || opcode == OP_2DIV || opcode == OP_MUL || opcode == OP_DIV ||
                     opcode == OP_MOD || opcode == OP_LSHIFT || opcode == OP_RSHIFT)
@@ -1230,7 +1215,8 @@ public class Script {
                 case OP_CHECKSIGVERIFY:
                     if (txContainingThis == null)
                         throw new IllegalStateException("Script attempted signature check but no tx was provided");
-                    executeCheckSig(txContainingThis, (int) index, script, stack, lastCodeSepLocation, opcode, value, verifyFlags);
+                    executeCheckSig(txContainingThis, (int) index, script, stack, lastCodeSepLocation, opcode,
+                            value, verifyFlags);
                     break;
                 case OP_CHECKMULTISIG:
                 case OP_CHECKMULTISIGVERIFY:
@@ -1424,10 +1410,8 @@ public class Script {
                 verifyFlags.contains(VerifyFlag.LOW_S));
 
             // TODO: Should check hash type is known
-            Sha256Hash hash = sig.useForkId()?
-                    txContainingThis.hashForWitnessSignature(index, connectedScript, value,
-                            (byte) sig.sighashFlags, verifyFlags)
-                    :txContainingThis.hashForSignature(index, connectedScript, (byte) sig.sighashFlags);
+            Sha256Hash hash = txContainingThis.hashForWitnessSignature(index, connectedScript, value,
+                    (byte) sig.sighashFlags, verifyFlags);
             sigValid = ECKey.verify(hash.getBytes(), sig, pubKey);
         } catch (VerificationException.NoncanonicalSignature e) {
             throw new ScriptException(ScriptError.SCRIPT_ERR_SIG_DER, "Script contains non-canonical signature");
@@ -1505,10 +1489,8 @@ public class Script {
             // more expensive than hashing, its not a big deal.
             try {
                 TransactionSignature sig = TransactionSignature.decodeFromBitcoin(sigs.getFirst(), requireCanonical, false);
-                Sha256Hash hash = sig.useForkId() ?
-                        txContainingThis.hashForWitnessSignature(index, connectedScript, value,
-                                (byte) sig.sighashFlags, verifyFlags)
-                        :txContainingThis.hashForSignature(index, connectedScript, (byte) sig.sighashFlags);
+                Sha256Hash hash = txContainingThis.hashForWitnessSignature(index, connectedScript, value,
+                        (byte) sig.sighashFlags, verifyFlags);
                 if (ECKey.verify(hash.getBytes(), sig, pubKey))
                     sigs.pollFirst();
             } catch (Exception e) {
@@ -1537,21 +1519,6 @@ public class Script {
     }
 
     /**
-     * Verifies that this script (interpreted as a scriptSig) correctly spends the given scriptPubKey, enabling all
-     * validation rules.
-     * @param txContainingThis The transaction in which this input scriptSig resides.
-     *                         Accessing txContainingThis from another thread while this method runs results in undefined behavior.
-     * @param scriptSigIndex The index in txContainingThis of the scriptSig (note: NOT the index of the scriptPubKey).
-     * @param scriptPubKey The connected scriptPubKey containing the conditions needed to claim the value.
-     * @deprecated
-     */
-    @Deprecated
-    public void correctlySpends(Transaction txContainingThis, long scriptSigIndex, Script scriptPubKey, Coin value)
-            throws ScriptException {
-        correctlySpends(txContainingThis, scriptSigIndex, scriptPubKey, value, ALL_VERIFY_FLAGS);
-    }
-
-    /**
      * Verifies that this script (interpreted as a scriptSig) correctly spends the given scriptPubKey.
      * @param txContainingThis The transaction in which this input scriptSig resides.
      *                         Accessing txContainingThis from another thread while this method runs results in undefined behavior.
@@ -1559,7 +1526,7 @@ public class Script {
      * @param scriptPubKey The connected scriptPubKey containing the conditions needed to claim the value.
      * @param verifyFlags Each flag enables one validation rule.
      */
-    public void correctlySpends(Transaction txContainingThis, long scriptSigIndex, Script scriptPubKey, Coin value,
+    public void correctlySpends(Transaction txContainingThis, long scriptSigIndex, Coin value, Script scriptPubKey,
                                 Set<VerifyFlag> verifyFlags) throws ScriptException {
         // Clone the transaction because executing the script involves editing it, and if we die, we'll leave
         // the tx half broken (also it's not so thread safe to work on it directly.
@@ -1628,7 +1595,34 @@ public class Script {
     }
 
     /**
-     * Get the {@link Script.ScriptType}.
+     * Returns the public key in this script. If a script contains two constants and nothing else, it is assumed to
+     * be a scriptSig (input) for a pay-to-address output and the second constant is returned (the first is the
+     * signature). If a script contains a constant and an OP_CHECKSIG opcode, the constant is returned as it is
+     * assumed to be a direct pay-to-key scriptPubKey (output) and the first constant is the public key.
+     *
+     * @throws org.bitcoinj.core.ScriptException if the script is none of the named forms.
+     */
+    public byte[] getPubKey() {
+        if (chunks.size() != 2) {
+            throw new org.bitcoinj.core.ScriptException(ScriptError.SCRIPT_ERR_INVALID_STACK_OPERATION, "he operation was invalid given the contents of the stack");
+        }
+        final ScriptChunk chunk0 = chunks.get(0);
+        final byte[] chunk0data = chunk0.data;
+        final ScriptChunk chunk1 = chunks.get(1);
+        final byte[] chunk1data = chunk1.data;
+        if (chunk0data != null && chunk0data.length > 2 && chunk1data != null && chunk1data.length > 2) {
+            // If we have two large constants assume the input to a pay-to-address output.
+            return chunk1data;
+        } else if (chunk1.equalsOpCode(OP_CHECKSIG) && chunk0data != null && chunk0data.length > 2) {
+            // A large constant followed by an OP_CHECKSIG is the key.
+            return chunk0data;
+        } else {
+            throw new org.bitcoinj.core.ScriptException(ScriptError.SCRIPT_ERR_INVALID_STACK_OPERATION, "he operation was invalid given the contents of the stack");
+        }
+    }
+
+    /**
+     * Get the {@link ScriptType}.
      * @return The script type, or null if the script is of unknown type
      */
     public @Nullable ScriptType getScriptType() {

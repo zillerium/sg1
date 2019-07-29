@@ -183,7 +183,7 @@ public class TransactionSignature extends ECKey.ECDSASignature {
 
     @Override
     public ECKey.ECDSASignature toCanonicalised() {
-        return new TransactionSignature(super.toCanonicalised(), sigHashMode(), anyoneCanPay(), useForkId());
+        return new TransactionSignature(super.toCanonicalised(), sigHashMode(), anyoneCanPay(), true);
     }
 
     /**

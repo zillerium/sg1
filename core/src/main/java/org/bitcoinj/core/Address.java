@@ -32,6 +32,8 @@ import org.bitcoinj.script.Script.ScriptType;
  * </p>
  */
 public abstract class Address extends PrefixedChecksummedBytes {
+    public static int LENGTH= 20;
+
     public Address(NetworkParameters params, byte[] bytes) {
         super(params, bytes);
     }
@@ -82,8 +84,6 @@ public abstract class Address extends PrefixedChecksummedBytes {
     public static Address fromKey(final NetworkParameters params, final ECKey key, final ScriptType outputScriptType) {
         if (outputScriptType == Script.ScriptType.P2PKH)
             return LegacyAddress.fromKey(params, key);
-        else if (outputScriptType == Script.ScriptType.P2WPKH)
-            return SegwitAddress.fromKey(params, key);
         else
             throw new IllegalArgumentException(outputScriptType.toString());
     }

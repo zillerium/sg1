@@ -70,10 +70,6 @@ public class DeterministicKeyChainTest {
                 .accountPath(DeterministicKeyChain.ACCOUNT_ZERO_PATH).outputScriptType(Script.ScriptType.P2PKH).build();
         chain.setLookaheadSize(10);
 
-        segwitChain = DeterministicKeyChain.builder().entropy(ENTROPY, secs)
-                .accountPath(DeterministicKeyChain.ACCOUNT_ONE_PATH).outputScriptType(Script.ScriptType.P2WPKH).build();
-        segwitChain.setLookaheadSize(10);
-
         bip44chain = DeterministicKeyChain.builder().entropy(ENTROPY, secs).accountPath(BIP44_COIN_1_ACCOUNT_ZERO_PATH)
                 .outputScriptType(Script.ScriptType.P2PKH).build();
         bip44chain.setLookaheadSize(10);
@@ -544,7 +540,6 @@ public class DeterministicKeyChainTest {
         checkSerialization(serialization, "watching-wallet-p2wpkh-serialization.txt");
         final DeterministicKeyChain chain = DeterministicKeyChain.fromProtobuf(serialization, null).get(0);
         assertEquals(DeterministicKeyChain.ACCOUNT_ONE_PATH, chain.getAccountPath());
-        assertEquals(Script.ScriptType.P2WPKH, chain.getOutputScriptType());
         final DeterministicKey rekey4 = segwitChain.getKey(KeyChain.KeyPurpose.CHANGE);
         assertEquals(key4.getPubKeyPoint(), rekey4.getPubKeyPoint());
     }

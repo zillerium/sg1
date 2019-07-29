@@ -129,7 +129,7 @@ public class SegwitAddress extends Address {
 
     /**
      * Get the type of output script that will be used for sending to the address. This is either
-     * {@link Script.ScriptType#P2WPKH} or {@link Script.ScriptType#P2WSH}.
+     *
      * 
      * @return type of output script
      */
@@ -138,10 +138,6 @@ public class SegwitAddress extends Address {
         int version = getWitnessVersion();
         checkState(version == 0);
         int programLength = getWitnessProgram().length;
-        if (programLength == WITNESS_PROGRAM_LENGTH_PKH)
-            return Script.ScriptType.P2WPKH;
-        if (programLength == WITNESS_PROGRAM_LENGTH_SH)
-            return Script.ScriptType.P2WSH;
         throw new IllegalStateException("Cannot happen.");
     }
 

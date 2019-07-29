@@ -446,8 +446,6 @@ public class Wallet extends BaseTaggableObject
         int header = ByteBuffer.wrap(Base58.decodeChecked(base58)).getInt();
         if (header == params.getBip32HeaderP2PKHpub() || header == params.getBip32HeaderP2PKHpriv())
             return Script.ScriptType.P2PKH;
-        else if (header == params.getBip32HeaderP2WPKHpub() || header == params.getBip32HeaderP2WPKHpriv())
-            return Script.ScriptType.P2WPKH;
         else
             throw new IllegalArgumentException(base58.substring(0, 4));
     }
@@ -1158,12 +1156,10 @@ public class Wallet extends BaseTaggableObject
      */
     public boolean isAddressMine(Address address) {
         final ScriptType scriptType = address.getOutputScriptType();
-        if (scriptType == ScriptType.P2PKH || scriptType == ScriptType.P2WPKH)
+        if (scriptType == ScriptType.P2PKH)
             return isPubKeyHashMine(address.getHash(), scriptType);
         else if (scriptType == ScriptType.P2SH)
             return isPayToScriptHashMine(address.getHash());
-        else if (scriptType == ScriptType.P2WSH)
-            return false;
         else
             throw new IllegalArgumentException(address.toString());
     }
@@ -1195,7 +1191,7 @@ public class Wallet extends BaseTaggableObject
      */
     public ECKey findKeyFromAddress(Address address) {
         final ScriptType scriptType = address.getOutputScriptType();
-        if (scriptType == ScriptType.P2PKH || scriptType == ScriptType.P2WPKH)
+        if (scriptType == ScriptType.P2PKH)
             return findKeyFromPubKeyHash(address.getHash(), scriptType);
         else
             return null;
@@ -4324,7 +4320,7 @@ public class Wallet extends BaseTaggableObject
                     // We assume if its already signed, its hopefully got a SIGHASH type that will not invalidate when
                     // we sign missing pieces (to check this would require either assuming any signatures are signing
                     // standard output types or a way to get processed signatures out of script execution)
-                    txIn.getScriptSig().correctlySpends(tx, i, scriptPubKey, connectedOutput.getValue(),
+                    txIn.getScriptSig().correctlySpends(tx, i, connectedOutput.getValue(), scriptPubKey,
                             Script.ALL_VERIFY_FLAGS);
                     log.warn("Input {} already correctly spends output, assuming SIGHASH type used will be safe and skipping signing.", i);
                     continue;
@@ -4421,10 +4417,6 @@ public class Wallet extends BaseTaggableObject
             ECKey key = findKeyFromPubKeyHash(ScriptPattern.extractHashFromP2PKH(script),
                     Script.ScriptType.P2PKH);
             return key != null && (key.isEncrypted() || key.hasPrivKey());
-        } else if (ScriptPattern.isP2WPKH(script)) {
-            ECKey key = findKeyFromPubKeyHash(ScriptPattern.extractHashFromP2WH(script),
-                    Script.ScriptType.P2WPKH);
-            return key != null && (key.isEncrypted() || key.hasPrivKey()) && key.isCompressed();
         } else if (ScriptPattern.isSentToMultisig(script)) {
             for (ECKey pubkey : script.getPubKeys()) {
                 ECKey key = findKeyFromPubKey(pubkey.getPubKey());
@@ -4889,10 +4881,6 @@ public class Wallet extends BaseTaggableObject
         try {
             if (!watchedScripts.isEmpty())
                 return true;
-            if (keyChainGroup.chains != null)
-                for (DeterministicKeyChain chain : keyChainGroup.chains)
-                    if (chain.getOutputScriptType() == Script.ScriptType.P2WPKH)
-                        return true;
             return false;
         } finally {
             keyChainGroupLock.unlock();
@@ -5211,10 +5199,6 @@ public class Wallet extends BaseTaggableObject
                     key = findKeyFromPubKeyHash(ScriptPattern.extractHashFromP2PKH(script), Script.ScriptType.P2PKH);
                     checkNotNull(key, "Coin selection includes unspendable outputs");
                     vsize += script.getNumberOfBytesRequiredToSpend(key, redeemScript);
-                } else if (ScriptPattern.isP2WPKH(script)) {
-                    key = findKeyFromPubKeyHash(ScriptPattern.extractHashFromP2WH(script), Script.ScriptType.P2WPKH);
-                    checkNotNull(key, "Coin selection includes unspendable outputs");
-                    vsize += (script.getNumberOfBytesRequiredToSpend(key, redeemScript) + 3) / 4; // round up
                 } else if (ScriptPattern.isP2SH(script)) {
                     redeemScript = findRedeemDataFromScriptHash(ScriptPattern.extractHashFromP2SH(script)).redeemScript;
                     checkNotNull(redeemScript, "Coin selection includes unspendable outputs");

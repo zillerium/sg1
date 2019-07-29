@@ -360,7 +360,7 @@ public class DeterministicKeyChain implements EncryptableKeyChain {
     protected DeterministicKeyChain(DeterministicSeed seed, @Nullable KeyCrypter crypter,
             Script.ScriptType outputScriptType, List<ChildNumber> accountPath) {
         checkArgument(outputScriptType == null || outputScriptType == Script.ScriptType.P2PKH
-                || outputScriptType == Script.ScriptType.P2WPKH, "Only P2PKH or P2WPKH allowed.");
+                , "Only P2PKH or P2WPKH allowed.");
         this.outputScriptType = outputScriptType != null ? outputScriptType : Script.ScriptType.P2PKH;
         this.accountPath = HDPath.M(accountPath);
         this.seed = seed;

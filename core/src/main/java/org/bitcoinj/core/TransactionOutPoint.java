@@ -144,9 +144,6 @@ public class TransactionOutPoint extends ChildMessage {
         if (ScriptPattern.isP2PKH(connectedScript)) {
             byte[] addressBytes = ScriptPattern.extractHashFromP2PKH(connectedScript);
             return keyBag.findKeyFromPubKeyHash(addressBytes, Script.ScriptType.P2PKH);
-        } else if (ScriptPattern.isP2WPKH(connectedScript)) {
-            byte[] addressBytes = ScriptPattern.extractHashFromP2WH(connectedScript);
-            return keyBag.findKeyFromPubKeyHash(addressBytes, Script.ScriptType.P2WPKH);
         } else if (ScriptPattern.isP2PK(connectedScript)) {
             byte[] pubkeyBytes = ScriptPattern.extractKeyFromP2PK(connectedScript);
             return keyBag.findKeyFromPubKey(pubkeyBytes);
@@ -170,9 +167,6 @@ public class TransactionOutPoint extends ChildMessage {
         if (ScriptPattern.isP2PKH(connectedScript)) {
             byte[] addressBytes = ScriptPattern.extractHashFromP2PKH(connectedScript);
             return RedeemData.of(keyBag.findKeyFromPubKeyHash(addressBytes, Script.ScriptType.P2PKH), connectedScript);
-        } else if (ScriptPattern.isP2WPKH(connectedScript)) {
-            byte[] addressBytes = ScriptPattern.extractHashFromP2WH(connectedScript);
-            return RedeemData.of(keyBag.findKeyFromPubKeyHash(addressBytes, Script.ScriptType.P2WPKH), connectedScript);
         } else if (ScriptPattern.isP2PK(connectedScript)) {
             byte[] pubkeyBytes = ScriptPattern.extractKeyFromP2PK(connectedScript);
             return RedeemData.of(keyBag.findKeyFromPubKey(pubkeyBytes), connectedScript);

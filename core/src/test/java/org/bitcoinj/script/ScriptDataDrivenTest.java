@@ -127,7 +127,7 @@ public class ScriptDataDrivenTest {
             Transaction spendTx = ScriptHelpers.buildSpendingTransaction(scriptSig, creditTx);
             spendTx.verify();
 
-            scriptSig.correctlySpends(spendTx, 0, scriptPubKey, value, flags);
+            scriptSig.correctlySpends(spendTx, 0, value, scriptPubKey, flags);
 
         }
 

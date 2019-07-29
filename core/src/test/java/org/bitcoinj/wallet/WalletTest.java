@@ -181,22 +181,6 @@ public class WalletTest extends TestWithWallet {
     }
 
     @Test
-    public void encryptDecryptWalletWithArbitraryPathAndScriptType() throws Exception {
-        final byte[] ENTROPY = Sha256Hash.hash("don't use a string seed like this in real life".getBytes());
-        KeyChainGroup keyChainGroup = KeyChainGroup.builder(UNITTEST)
-                .addChain(DeterministicKeyChain.builder().seed(new DeterministicSeed(ENTROPY, "", 1389353062L))
-                        .outputScriptType(Script.ScriptType.P2WPKH)
-                        .accountPath(DeterministicKeyChain.BIP44_ACCOUNT_ZERO_PATH).build())
-                .build();
-        Wallet encryptedWallet = new Wallet(UNITTEST, keyChainGroup);
-        encryptedWallet = roundTrip(encryptedWallet);
-        encryptedWallet.encrypt(PASSWORD1);
-        encryptedWallet = roundTrip(encryptedWallet);
-        encryptedWallet.decrypt(PASSWORD1);
-        encryptedWallet = roundTrip(encryptedWallet);
-    }
-
-    @Test
     public void basicSpendingFromP2SH() throws Exception {
         createMarriedWallet(2, 2);
         myAddress = wallet.currentAddress(KeyChain.KeyPurpose.RECEIVE_FUNDS);
@@ -2725,23 +2709,6 @@ public class WalletTest extends TestWithWallet {
     }
 
     @Test
-    public void witnessTransactionGetFeeTest() throws Exception {
-        Wallet mySegwitWallet = Wallet.createDeterministic(UNITTEST, Script.ScriptType.P2WPKH);
-        Address mySegwitAddress = mySegwitWallet.freshReceiveAddress(Script.ScriptType.P2WPKH);
-
-        // Prepare wallet to spend
-        StoredBlock block = new StoredBlock(makeSolvedTestBlock(blockStore, OTHER_SEGWIT_ADDRESS), BigInteger.ONE, 1);
-        Transaction tx = createFakeTx(UNITTEST, COIN, mySegwitAddress);
-        mySegwitWallet.receiveFromBlock(tx, block, AbstractBlockChain.NewBlockType.BEST_CHAIN, 0);
-
-        // Create a transaction
-        SendRequest request = SendRequest.to(OTHER_SEGWIT_ADDRESS, CENT);
-        request.feePerKb = Transaction.DEFAULT_TX_FEE;
-        mySegwitWallet.completeTx(request);
-        assertEquals(Coin.valueOf(14000), request.tx.getFee());
-    }
-
-    @Test
     public void lowerThanDefaultFee() throws InsufficientMoneyException {
         int feeFactor = 50;
         Coin fee = Transaction.DEFAULT_TX_FEE.divide(feeFactor);
@@ -2814,8 +2781,8 @@ public class WalletTest extends TestWithWallet {
         assertEquals(CENT, request2.tx.getOutput(0).getValue());
         // Make sure it was properly signed
         request2.tx.getInput(0).getScriptSig().correctlySpends(
-                request2.tx, 0, tx3.getOutput(0).getScriptPubKey(),
-                request2.tx.getInput(0).getValue(), Script.ALL_VERIFY_FLAGS);
+                request2.tx, 0, request2.tx.getInput(0).getValue(),
+                tx3.getOutput(0).getScriptPubKey(), Script.ALL_VERIFY_FLAGS);
 
         // However, if there is no connected output, we will grab a COIN output anyway and add the CENT to fee
         SendRequest request3 = SendRequest.to(OTHER_ADDRESS, CENT);
@@ -3259,7 +3226,7 @@ public class WalletTest extends TestWithWallet {
                 assertArrayEquals(expectedSig, input.getScriptSig().getChunks().get(0).data);
             } else if (input.getConnectedOutput().getParentTransaction().equals(t3)) {
                 input.getScriptSig().correctlySpends(
-                        req.tx, i, t3.getOutput(0).getScriptPubKey(), input.getValue(), Script.ALL_VERIFY_FLAGS);
+                        req.tx, i, input.getValue(), t3.getOutput(0).getScriptPubKey(), Script.ALL_VERIFY_FLAGS);
             }
         }
         assertTrue(TransactionSignature.isEncodingCanonical(dummySig));
@@ -3342,7 +3309,6 @@ public class WalletTest extends TestWithWallet {
         wallet.importKeys(Arrays.asList(new ECKey(), new ECKey()));
         assertFalse(wallet.isEncrypted());
         assertTrue(wallet.isDeterministicUpgradeRequired(Script.ScriptType.P2PKH));
-        assertTrue(wallet.isDeterministicUpgradeRequired(Script.ScriptType.P2WPKH));
         try {
             wallet.freshReceiveKey();
             fail();
@@ -3353,7 +3319,6 @@ public class WalletTest extends TestWithWallet {
         wallet.upgradeToDeterministic(Script.ScriptType.P2PKH, null);
         assertFalse(wallet.isEncrypted());
         assertFalse(wallet.isDeterministicUpgradeRequired(Script.ScriptType.P2PKH));
-        assertTrue(wallet.isDeterministicUpgradeRequired(Script.ScriptType.P2WPKH));
         assertEquals(Script.ScriptType.P2PKH, wallet.currentReceiveAddress().getOutputScriptType());
         assertEquals(Script.ScriptType.P2PKH, wallet.freshReceiveAddress().getOutputScriptType());
     }
@@ -3364,7 +3329,6 @@ public class WalletTest extends TestWithWallet {
         wallet.importKeys(Arrays.asList(new ECKey(), new ECKey()));
         assertFalse(wallet.isEncrypted());
         assertTrue(wallet.isDeterministicUpgradeRequired(Script.ScriptType.P2PKH));
-        assertTrue(wallet.isDeterministicUpgradeRequired(Script.ScriptType.P2WPKH));
 
         KeyParameter aesKey = new KeyCrypterScrypt(SCRYPT_ITERATIONS).deriveKey("abc");
         wallet.encrypt(new KeyCrypterScrypt(), aesKey);
@@ -3385,118 +3349,8 @@ public class WalletTest extends TestWithWallet {
         wallet.upgradeToDeterministic(Script.ScriptType.P2PKH, aesKey);
         assertTrue(wallet.isEncrypted());
         assertFalse(wallet.isDeterministicUpgradeRequired(Script.ScriptType.P2PKH));
-        assertTrue(wallet.isDeterministicUpgradeRequired(Script.ScriptType.P2WPKH));
         assertEquals(Script.ScriptType.P2PKH, wallet.currentReceiveAddress().getOutputScriptType());
         assertEquals(Script.ScriptType.P2PKH, wallet.freshReceiveAddress().getOutputScriptType());
-    }
-
-    @Test
-    public void upgradeToDeterministic_basic_to_P2WPKH_unencrypted() throws Exception {
-        wallet = new Wallet(UNITTEST, KeyChainGroup.builder(UNITTEST).build());
-        wallet.importKeys(Arrays.asList(new ECKey(), new ECKey()));
-        assertFalse(wallet.isEncrypted());
-        assertTrue(wallet.isDeterministicUpgradeRequired(Script.ScriptType.P2PKH));
-        assertTrue(wallet.isDeterministicUpgradeRequired(Script.ScriptType.P2WPKH));
-        try {
-            wallet.freshReceiveKey();
-            fail();
-        } catch (DeterministicUpgradeRequiredException e) {
-            // Expected.
-        }
-
-        wallet.upgradeToDeterministic(Script.ScriptType.P2WPKH, null);
-        assertFalse(wallet.isEncrypted());
-        assertFalse(wallet.isDeterministicUpgradeRequired(Script.ScriptType.P2PKH));
-        assertFalse(wallet.isDeterministicUpgradeRequired(Script.ScriptType.P2WPKH));
-        assertEquals(Script.ScriptType.P2WPKH, wallet.currentReceiveAddress().getOutputScriptType());
-        assertEquals(Script.ScriptType.P2WPKH, wallet.freshReceiveAddress().getOutputScriptType());
-    }
-
-    @Test
-    public void upgradeToDeterministic_basic_to_P2WPKH_encrypted() throws Exception {
-        wallet = new Wallet(UNITTEST, KeyChainGroup.builder(UNITTEST).build());
-        wallet.importKeys(Arrays.asList(new ECKey(), new ECKey()));
-        assertFalse(wallet.isEncrypted());
-        assertTrue(wallet.isDeterministicUpgradeRequired(Script.ScriptType.P2PKH));
-        assertTrue(wallet.isDeterministicUpgradeRequired(Script.ScriptType.P2WPKH));
-
-        KeyParameter aesKey = new KeyCrypterScrypt(SCRYPT_ITERATIONS).deriveKey("abc");
-        wallet.encrypt(new KeyCrypterScrypt(), aesKey);
-        assertTrue(wallet.isEncrypted());
-        try {
-            wallet.upgradeToDeterministic(Script.ScriptType.P2WPKH, null);
-            fail();
-        } catch (DeterministicUpgradeRequiresPassword e) {
-            // Expected.
-        }
-
-        wallet.upgradeToDeterministic(Script.ScriptType.P2WPKH, aesKey);
-        assertTrue(wallet.isEncrypted());
-        assertFalse(wallet.isDeterministicUpgradeRequired(Script.ScriptType.P2PKH));
-        assertFalse(wallet.isDeterministicUpgradeRequired(Script.ScriptType.P2WPKH));
-        assertEquals(Script.ScriptType.P2WPKH, wallet.currentReceiveAddress().getOutputScriptType());
-        assertEquals(Script.ScriptType.P2WPKH, wallet.freshReceiveAddress().getOutputScriptType());
-    }
-
-    @Test
-    public void upgradeToDeterministic_P2PKH_to_P2WPKH_unencrypted() throws Exception {
-        wallet = Wallet.createDeterministic(UNITTEST, Script.ScriptType.P2PKH);
-        assertFalse(wallet.isEncrypted());
-        assertFalse(wallet.isDeterministicUpgradeRequired(Script.ScriptType.P2PKH));
-        assertTrue(wallet.isDeterministicUpgradeRequired(Script.ScriptType.P2WPKH));
-        assertEquals(Script.ScriptType.P2PKH, wallet.currentReceiveAddress().getOutputScriptType());
-        assertEquals(Script.ScriptType.P2PKH, wallet.freshReceiveAddress().getOutputScriptType());
-
-        wallet.upgradeToDeterministic(Script.ScriptType.P2WPKH, null);
-        assertFalse(wallet.isEncrypted());
-        assertFalse(wallet.isDeterministicUpgradeRequired(Script.ScriptType.P2PKH));
-        assertFalse(wallet.isDeterministicUpgradeRequired(Script.ScriptType.P2WPKH));
-        assertEquals(Script.ScriptType.P2WPKH, wallet.currentReceiveAddress().getOutputScriptType());
-        assertEquals(Script.ScriptType.P2WPKH, wallet.freshReceiveAddress().getOutputScriptType());
-    }
-
-    @Test
-    public void upgradeToDeterministic_P2PKH_to_P2WPKH_encrypted() throws Exception {
-        wallet = Wallet.createDeterministic(UNITTEST, Script.ScriptType.P2PKH);
-        assertFalse(wallet.isEncrypted());
-        assertFalse(wallet.isDeterministicUpgradeRequired(Script.ScriptType.P2PKH));
-        assertTrue(wallet.isDeterministicUpgradeRequired(Script.ScriptType.P2WPKH));
-
-        KeyParameter aesKey = new KeyCrypterScrypt(SCRYPT_ITERATIONS).deriveKey("abc");
-        wallet.encrypt(new KeyCrypterScrypt(), aesKey);
-        assertTrue(wallet.isEncrypted());
-        assertEquals(Script.ScriptType.P2PKH, wallet.currentReceiveAddress().getOutputScriptType());
-        assertEquals(Script.ScriptType.P2PKH, wallet.freshReceiveAddress().getOutputScriptType());
-        try {
-            wallet.upgradeToDeterministic(Script.ScriptType.P2WPKH, null);
-            fail();
-        } catch (DeterministicUpgradeRequiresPassword e) {
-            // Expected.
-        }
-
-        wallet.upgradeToDeterministic(Script.ScriptType.P2WPKH, aesKey);
-        assertTrue(wallet.isEncrypted());
-        assertFalse(wallet.isDeterministicUpgradeRequired(Script.ScriptType.P2PKH));
-        assertFalse(wallet.isDeterministicUpgradeRequired(Script.ScriptType.P2WPKH));
-        assertEquals(Script.ScriptType.P2WPKH, wallet.currentReceiveAddress().getOutputScriptType());
-        assertEquals(Script.ScriptType.P2WPKH, wallet.freshReceiveAddress().getOutputScriptType());
-    }
-
-    @Test
-    public void upgradeToDeterministic_noDowngrade_unencrypted() throws Exception {
-        wallet = Wallet.createDeterministic(UNITTEST, Script.ScriptType.P2WPKH);
-        assertFalse(wallet.isEncrypted());
-        assertFalse(wallet.isDeterministicUpgradeRequired(Script.ScriptType.P2PKH));
-        assertFalse(wallet.isDeterministicUpgradeRequired(Script.ScriptType.P2WPKH));
-        assertEquals(Script.ScriptType.P2WPKH, wallet.currentReceiveAddress().getOutputScriptType());
-        assertEquals(Script.ScriptType.P2WPKH, wallet.freshReceiveAddress().getOutputScriptType());
-
-        wallet.upgradeToDeterministic(Script.ScriptType.P2PKH, null);
-        assertFalse(wallet.isEncrypted());
-        assertFalse(wallet.isDeterministicUpgradeRequired(Script.ScriptType.P2PKH));
-        assertFalse(wallet.isDeterministicUpgradeRequired(Script.ScriptType.P2WPKH));
-        assertEquals(Script.ScriptType.P2WPKH, wallet.currentReceiveAddress().getOutputScriptType());
-        assertEquals(Script.ScriptType.P2WPKH, wallet.freshReceiveAddress().getOutputScriptType());
     }
 
     @Test(expected = IllegalStateException.class)
@@ -3708,52 +3562,5 @@ public class WalletTest extends TestWithWallet {
         // this will fail if tx4 does not get disconnected from tx1
         wallet = roundTrip(wallet);
         assertTrue(wallet.isConsistent());
-    }
-
-    @Test
-    public void scriptTypeKeyChainRestrictions() {
-        // Set up chains: basic chain, P2PKH deterministric chain, P2WPKH deterministic chain.
-        DeterministicKeyChain p2pkhChain = DeterministicKeyChain.builder().random(new SecureRandom())
-                .outputScriptType(Script.ScriptType.P2PKH).build();
-        DeterministicKeyChain p2wpkhChain = DeterministicKeyChain.builder().random(new SecureRandom())
-                .outputScriptType(Script.ScriptType.P2WPKH).build();
-        KeyChainGroup kcg = KeyChainGroup.builder(UNITTEST).addChain(p2pkhChain).addChain(p2wpkhChain).build();
-        Wallet wallet = new Wallet(UNITTEST, kcg);
-
-        // Set up one key from each chain.
-        ECKey importedKey = new ECKey();
-        wallet.importKey(importedKey);
-        ECKey p2pkhKey = p2pkhChain.getKey(KeyPurpose.RECEIVE_FUNDS);
-        ECKey p2wpkhKey = p2wpkhChain.getKey(KeyPurpose.RECEIVE_FUNDS);
-
-        // Test imported key: it's not limited to script type.
-        assertTrue(wallet.isAddressMine(LegacyAddress.fromKey(UNITTEST, importedKey)));
-        assertTrue(wallet.isAddressMine(SegwitAddress.fromKey(UNITTEST, importedKey)));
-        assertEquals(importedKey, wallet.findKeyFromAddress(LegacyAddress.fromKey(UNITTEST, importedKey)));
-        assertEquals(importedKey, wallet.findKeyFromAddress(SegwitAddress.fromKey(UNITTEST, importedKey)));
-
-        // Test key from P2PKH chain: it's limited to P2PKH addresses
-        assertTrue(wallet.isAddressMine(LegacyAddress.fromKey(UNITTEST, p2pkhKey)));
-        assertFalse(wallet.isAddressMine(SegwitAddress.fromKey(UNITTEST, p2pkhKey)));
-        assertEquals(p2pkhKey, wallet.findKeyFromAddress(LegacyAddress.fromKey(UNITTEST, p2pkhKey)));
-        assertNull(wallet.findKeyFromAddress(SegwitAddress.fromKey(UNITTEST, p2pkhKey)));
-
-        // Test key from P2WPKH chain: it's limited to P2WPKH addresses
-        assertFalse(wallet.isAddressMine(LegacyAddress.fromKey(UNITTEST, p2wpkhKey)));
-        assertTrue(wallet.isAddressMine(SegwitAddress.fromKey(UNITTEST, p2wpkhKey)));
-        assertNull(wallet.findKeyFromAddress(LegacyAddress.fromKey(UNITTEST, p2wpkhKey)));
-        assertEquals(p2wpkhKey, wallet.findKeyFromAddress(SegwitAddress.fromKey(UNITTEST, p2wpkhKey)));
-    }
-
-    @Test
-    public void roundtripViaMnemonicCode() {
-        Wallet wallet = Wallet.createDeterministic(UNITTEST, Script.ScriptType.P2WPKH);
-        List<String> mnemonicCode = wallet.getKeyChainSeed().getMnemonicCode();
-        final DeterministicSeed clonedSeed = new DeterministicSeed(mnemonicCode, null, "",
-                wallet.getEarliestKeyCreationTime());
-        Wallet clone = Wallet.fromSeed(UNITTEST, clonedSeed, Script.ScriptType.P2WPKH);
-        assertEquals(wallet.currentReceiveKey(), clone.currentReceiveKey());
-        assertEquals(wallet.freshReceiveAddress(Script.ScriptType.P2PKH),
-                clone.freshReceiveAddress(Script.ScriptType.P2PKH));
     }
 }
