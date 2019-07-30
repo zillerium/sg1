@@ -13,7 +13,7 @@ if (GradleVersion.current().compareTo(minGradleVersion) < 0) {
 }
 
 include 'core'
-project(':core').name = 'bitcoinj-core'
+project(':core').name = 'bitcoinj-sv-core'
 
 include 'tools'
 project(':tools').name = 'bitcoinj-tools'

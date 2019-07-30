@@ -6,7 +6,7 @@ plugins {
 version = '0.16-SNAPSHOT'
 
 dependencies {
-    implementation project(':bitcoinj-core')
+    implementation project(':bitcoinj-sv-core')
     implementation 'com.google.guava:guava:27.1-android'
     implementation 'net.sf.jopt-simple:jopt-simple:5.0.4'
     implementation 'org.slf4j:slf4j-jdk14:1.7.25'

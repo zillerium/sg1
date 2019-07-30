@@ -5,7 +5,7 @@ plugins {
     id 'eclipse'
 }
 
-version = '0.16-SNAPSHOT'
+version = '0.10'
 
 dependencies {
     compile 'org.bouncycastle:bcprov-jdk15on:1.60'
@@ -45,7 +45,7 @@ test {
     }
 }
 
-ext.moduleName = 'org.bitcoinj.core'
+ext.moduleName = 'org.bitcoinj-sv.core'
 
 jar {
     inputs.property("moduleName", moduleName)
